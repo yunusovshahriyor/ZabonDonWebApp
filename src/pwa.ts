@@ -43,7 +43,8 @@ export function setupPwa() {
   }
 }
 
-const isStandalone = () =>
+/** Барнома аз нишонаи экрани асосӣ кушода шудааст (PWA, бе навори браузер). */
+export const isStandalone = () =>
   isWeb && (window.matchMedia?.('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
 
 const isIOS = () => isWeb && /iphone|ipad|ipod/i.test(navigator.userAgent);

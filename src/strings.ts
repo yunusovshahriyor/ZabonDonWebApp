@@ -72,6 +72,7 @@ export const t = {
   navProfile: 'Профил',
   exitTitle: 'Баромадан аз барнома?',
   exitDesc: 'Шумо мехоҳед аз ZabonDon бароед?',
+  exitHintStandalone: 'Барои баромад тугмаи «Назад»-ро боз як маротиба пахш кунед.',
   exitCancel: 'Бекор кардан',
   exitConfirm: 'Баромадан',
   exitedTitle: 'Барнома баста шуд',
