@@ -2,19 +2,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import type { TabKey } from './components/BottomNav';
 
-/** category — категорияи кушодашуда дар «Луғатҳо»; studyCategory — омӯзиши ҳамон категория (бе он — омӯзиши умумӣ). */
-export type Nav = { tab: TabKey; studying: boolean; category: string | null; studyCategory?: string };
+/** catalog — каталоги категорияҳо (аз саҳифаи асосӣ); category — категорияи кушодашуда дар каталог; studyCategory — омӯзиши ҳамон категория (бе он — омӯзиши умумӣ). */
+export type Nav = { tab: TabKey; studying: boolean; category: string | null; catalog: boolean; studyCategory?: string };
 
-type HState = { zd: 1; tab: TabKey; studying: boolean; cat?: string | null; sc?: string } | { zd: 'exit' };
+type HState = { zd: 1; tab: TabKey; studying: boolean; cat?: string | null; cg?: boolean; sc?: string } | { zd: 'exit' };
 
 const isWeb = Platform.OS === 'web' && typeof window !== 'undefined';
-const HOME: HState = { zd: 1, tab: 'home', studying: false, cat: null };
+const HOME: HState = { zd: 1, tab: 'home', studying: false, cat: null, cg: false };
 
 /** Чанд сония тоаст намоён мемонад; дар ин вақт "Назад"-и дуюм барномаро мебарорад. */
 export const EXIT_TOAST_MS = 3000;
 
-const depthOf = (n: Nav) => (n.tab !== 'home' ? 1 : 0) + (n.category ? 1 : 0) + (n.studying ? 1 : 0);
-const fromState = (st: Extract<HState, { zd: 1 }>): Nav => ({ tab: st.tab, studying: st.studying, category: st.cat ?? null, studyCategory: st.sc });
+const depthOf = (n: Nav) => (n.tab !== 'home' ? 1 : 0) + (n.catalog ? 1 : 0) + (n.category ? 1 : 0) + (n.studying ? 1 : 0);
+const fromState = (st: Extract<HState, { zd: 1 }>): Nav => ({ tab: st.tab, studying: st.studying, category: st.cat ?? null, catalog: !!st.cg, studyCategory: st.sc });
 
 /**
  * Навигатсия бо History API, то тугмаи "Назад"-и телефон/браузер кор кунад:
@@ -31,7 +31,7 @@ const fromState = (st: Extract<HState, { zd: 1 }>): Nav => ({ tab: st.tab, study
 export function useNav() {
   const [nav, setNavState] = useState<Nav>(() => {
     const st = isWeb ? (history.state as HState | null) : null;
-    return st && st.zd === 1 ? fromState(st) : { tab: 'home', studying: false, category: null };
+    return st && st.zd === 1 ? fromState(st) : { tab: 'home', studying: false, category: null, catalog: false };
   });
   const [toast, setToast] = useState(false);
   const navRef = useRef(nav);
@@ -103,11 +103,12 @@ export function useNav() {
     (tab: TabKey) => {
       const cur = navRef.current;
       if (tab === cur.tab) {
-        // Пахши такрории «Луғатҳо» дар дохили категория — ба рӯйхати категорияҳо
-        if (tab === 'dict' && cur.category) closeCategory();
+        // «Асосӣ» дар дохили каталог/категория — ба саҳифаи асосӣ
+        if (tab === 'home' && depthOf(cur) > 0 && isWeb && stackReady.current) history.go(-depthOf(cur));
+        else if (tab === 'home' && depthOf(cur) > 0) setNavState({ tab, studying: false, category: null, catalog: false });
         return;
       }
-      const fresh: Nav = { tab, studying: false, category: null };
+      const fresh: Nav = { tab, studying: false, category: null, catalog: false };
       if (!isWeb) return setNavState(fresh);
       ensureStack();
       leaveSentinel();
@@ -117,24 +118,37 @@ export function useNav() {
         else setNavState(fresh);
         return;
       }
-      const s: HState = { zd: 1, tab, studying: false, cat: null };
-      if (cur.tab === 'home') {
-        history.pushState(s, '');
+      const s: HState = { zd: 1, tab, studying: false, cat: null, cg: false };
+      const extra = depthOf(cur) - (cur.tab !== 'home' ? 1 : 0); // қабатҳои болои таб/асосӣ (каталог, категория, омӯзиш)
+      const place = () => {
+        if (cur.tab === 'home') history.pushState(s, '');
+        else history.replaceState(s, '');
         setNavState(fresh);
-      } else if (depthOf(cur) === 1) {
-        history.replaceState(s, '');
-        setNavState(fresh);
-      } else {
-        // Аз категория ба таби дигар: аввал ба қабати таб бармегардем, баъд онро иваз мекунем.
-        afterPop.current = () => {
-          history.replaceState(s, '');
-          setNavState(fresh);
-        };
-        history.go(-(depthOf(cur) - 1));
+      };
+      if (extra === 0) place();
+      else {
+        // Аз каталог/категория ба таби дигар: аввал ба қабати таб/асосӣ бармегардем, баъд ҷойгир мекунем.
+        afterPop.current = place;
+        history.go(-extra);
       }
     },
     [ensureStack, leaveSentinel],
   );
+
+  const openCatalog = useCallback(() => {
+    const cur = navRef.current;
+    if (isWeb) {
+      ensureStack();
+      leaveSentinel();
+      history.pushState({ zd: 1, tab: 'home', studying: false, cat: null, cg: true } satisfies HState, '');
+    }
+    setNavState({ ...cur, tab: 'home', studying: false, category: null, catalog: true });
+  }, [ensureStack, leaveSentinel]);
+
+  const closeCatalog = useCallback(() => {
+    if (isWeb && stackReady.current) history.back();
+    else setNavState({ ...navRef.current, category: null, catalog: false });
+  }, []);
 
   const openCategory = useCallback(
     (id: string) => {
@@ -142,16 +156,16 @@ export function useNav() {
       if (isWeb) {
         ensureStack();
         leaveSentinel();
-        history.pushState({ zd: 1, tab: cur.tab, studying: false, cat: id } satisfies HState, '');
+        history.pushState({ zd: 1, tab: cur.tab, studying: false, cat: id, cg: cur.catalog } satisfies HState, '');
       }
-      setNavState({ tab: cur.tab, studying: false, category: id });
+      setNavState({ tab: cur.tab, studying: false, category: id, catalog: cur.catalog });
     },
     [ensureStack, leaveSentinel],
   );
 
   const closeCategory = useCallback(() => {
     if (isWeb && stackReady.current) history.back();
-    else setNavState({ tab: navRef.current.tab, studying: false, category: null });
+    else setNavState({ ...navRef.current, studying: false, category: null });
   }, []);
 
   const openStudy = useCallback(
@@ -160,9 +174,9 @@ export function useNav() {
       if (isWeb) {
         ensureStack();
         leaveSentinel();
-        history.pushState({ zd: 1, tab: cur.tab, studying: true, cat: cur.category, sc: categoryId } satisfies HState, '');
+        history.pushState({ zd: 1, tab: cur.tab, studying: true, cat: cur.category, cg: cur.catalog, sc: categoryId } satisfies HState, '');
       }
-      setNavState({ tab: cur.tab, studying: true, category: cur.category, studyCategory: categoryId });
+      setNavState({ tab: cur.tab, studying: true, category: cur.category, catalog: cur.catalog, studyCategory: categoryId });
     },
     [ensureStack, leaveSentinel],
   );
@@ -172,5 +186,5 @@ export function useNav() {
     else setNavState({ ...navRef.current, studying: false, studyCategory: undefined });
   }, []);
 
-  return { ...nav, toast, goTab, openStudy, closeStudy, openCategory, closeCategory };
+  return { ...nav, toast, goTab, openStudy, closeStudy, openCatalog, closeCatalog, openCategory, closeCategory };
 }
