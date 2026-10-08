@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
+import { PullToRefresh } from './src/components/PullToRefresh';
 import { BottomNav, TabKey } from './src/components/BottomNav';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
@@ -28,9 +29,9 @@ function useGlobalStyles() {
 
 function Soon() {
   return (
-    <View style={styles.soon}>
+    <PullToRefresh style={{ flex: 1 }} contentContainerStyle={styles.soon}>
       <Text style={styles.soonText}>Ба зудӣ</Text>
-    </View>
+    </PullToRefresh>
   );
 }
 
@@ -67,6 +68,6 @@ export default function App() {
 const styles = StyleSheet.create({
   outer: { flex: 1, alignItems: 'center', backgroundColor: 'transparent' },
   page: { flex: 1, width: '100%', maxWidth: 480, backgroundColor: 'transparent' },
-  soon: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  soon: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
   soonText: { fontSize: 18, fontWeight: '600', color: colors.textSecondary },
 });
