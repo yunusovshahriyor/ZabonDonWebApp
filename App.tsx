@@ -1,13 +1,16 @@
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { PullToRefresh } from './src/components/PullToRefresh';
-import { BottomNav, TabKey } from './src/components/BottomNav';
+import { BottomNav } from './src/components/BottomNav';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { StudyScreen } from './src/screens/StudyScreen';
 import { setupPwa } from './src/pwa';
-import { GAMES_KEY, NAV_KEY, STUDY_KEY, clearSession, getSession, setSession } from './src/session';
+import { GAMES_KEY, STUDY_KEY, clearSession } from './src/session';
+import { useNav } from './src/useNav';
+import { t } from './src/strings';
+import { Tap } from './src/components/Tap';
 import { colors } from './src/theme';
 
 // Шрифти Inter (кириллика) + фони мулоими мятӣ барои тамоми сайт.
@@ -36,16 +39,29 @@ function Soon() {
   );
 }
 
+function ExitDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <View style={styles.overlay}>
+      <View style={styles.dialog}>
+        <Text style={styles.dialogTitle}>{t.exitTitle}</Text>
+        <Text style={styles.dialogDesc}>{t.exitDesc}</Text>
+        <View style={styles.dialogRow}>
+          <Tap style={[styles.dialogBtn, styles.dialogCancel]} onPress={onCancel}>
+            <Text style={styles.dialogCancelText}>{t.exitCancel}</Text>
+          </Tap>
+          <Tap style={[styles.dialogBtn, styles.dialogConfirm]} onPress={onConfirm}>
+            <Text style={styles.dialogConfirmText}>{t.exitConfirm}</Text>
+          </Tap>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // Дар телефон экрани пурра; дар компютер — сутуни марказии 480px.
 export default function App() {
   useGlobalStyles();
-  // Пас аз навсозии саҳифа (кашидан ё F5) корбар дар ҳамон саҳифа мемонад.
-  const [saved] = useState(() => getSession<{ tab: TabKey; studying: boolean }>(NAV_KEY));
-  const [tab, setTab] = useState<TabKey>(saved?.tab ?? 'home');
-  const [studying, setStudying] = useState(saved?.studying ?? false);
-  useEffect(() => {
-    setSession(NAV_KEY, { tab, studying });
-  }, [tab, studying]);
+  const { tab, studying, exitOpen, goTab, openStudy, closeStudy, cancelExit, confirmExit } = useNav();
 
   // Ҷаласаи омӯзиш экрани пурра аст (бе менюи поёнӣ)
   if (studying) {
@@ -55,7 +71,7 @@ export default function App() {
           <StudyScreen
             onClose={() => {
               clearSession(STUDY_KEY, GAMES_KEY);
-              setStudying(false);
+              closeStudy();
             }}
           />
         </View>
@@ -69,19 +85,30 @@ export default function App() {
         {tab === 'home' && <HomeScreen
             onStudy={() => {
               clearSession(STUDY_KEY, GAMES_KEY); // ҷаласаи нав
-              setStudying(true);
+              openStudy();
             }}
           />}
         {tab === 'profile' && <ProfileScreen />}
         {tab !== 'home' && tab !== 'profile' && <Soon />}
       </View>
-      <BottomNav active={tab} onChange={setTab} />
+      <BottomNav active={tab} onChange={goTab} />
       <StatusBar style="dark" />
+      {exitOpen && <ExitDialog onCancel={cancelExit} onConfirm={confirmExit} />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(19, 37, 28, 0.45)', alignItems: 'center', justifyContent: 'center', padding: 24, zIndex: 100 },
+  dialog: { width: '100%', maxWidth: 360, backgroundColor: '#fff', borderRadius: 24, padding: 22, boxShadow: '0px 18px 48px rgba(18, 52, 36, 0.28)' },
+  dialogTitle: { fontSize: 19, fontWeight: '800', color: colors.text, letterSpacing: -0.3 },
+  dialogDesc: { fontSize: 15, color: colors.textSecondary, marginTop: 8, lineHeight: 21 },
+  dialogRow: { flexDirection: 'row', gap: 10, marginTop: 22 },
+  dialogBtn: { flex: 1, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  dialogCancel: { backgroundColor: colors.greenSoft },
+  dialogCancelText: { color: colors.green, fontSize: 15, fontWeight: '700' },
+  dialogConfirm: { backgroundColor: '#D8483B' },
+  dialogConfirmText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   outer: { flex: 1, alignItems: 'center', backgroundColor: 'transparent' },
   page: { flex: 1, width: '100%', maxWidth: 480, backgroundColor: 'transparent' },
   soon: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
