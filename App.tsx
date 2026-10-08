@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { BottomNav, TabKey } from './src/components/BottomNav';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { ProfileScreen } from './src/screens/ProfileScreen';
 import { StudyScreen } from './src/screens/StudyScreen';
+import { setupPwa } from './src/pwa';
 import { colors } from './src/theme';
 
 // Шрифти Inter (кириллика) + фони мулоими мятӣ барои тамоми сайт.
@@ -20,6 +22,7 @@ function useGlobalStyles() {
       '#root{position:fixed;top:0;right:0;bottom:0;left:0;overflow:hidden;background:transparent}' +
       'body,input{font-family:Inter,system-ui,sans-serif;-webkit-tap-highlight-color:transparent}';
     document.head.appendChild(style);
+    setupPwa();
   }, []);
 }
 
@@ -52,7 +55,8 @@ export default function App() {
     <View style={styles.outer}>
       <View style={styles.page}>
         {tab === 'home' && <HomeScreen onStudy={() => setStudying(true)} />}
-        {tab !== 'home' && <Soon />}
+        {tab === 'profile' && <ProfileScreen />}
+        {tab !== 'home' && tab !== 'profile' && <Soon />}
       </View>
       <BottomNav active={tab} onChange={setTab} />
       <StatusBar style="dark" />
