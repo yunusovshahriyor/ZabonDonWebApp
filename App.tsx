@@ -3,6 +3,9 @@ import { useEffect } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { PullToRefresh } from './src/components/PullToRefresh';
 import { BottomNav } from './src/components/BottomNav';
+import { loadContent } from './src/content';
+import { CategoryScreen } from './src/screens/CategoryScreen';
+import { DictionariesScreen } from './src/screens/DictionariesScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { StudyScreen } from './src/screens/StudyScreen';
@@ -12,6 +15,9 @@ import { useNav } from './src/useNav';
 import { t } from './src/strings';
 import { Tap } from './src/components/Tap';
 import { colors } from './src/theme';
+
+// Мундариҷа (категорияҳо ва калимаҳо) аз Firestore: аз кэш фавран, баъд аз база нав мешавад.
+loadContent();
 
 // Шрифти Inter (кириллика) + фони мулоими мятӣ барои тамоми сайт.
 function useGlobalStyles() {
@@ -65,7 +71,8 @@ function ExitDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: 
 // Дар телефон экрани пурра; дар компютер — сутуни марказии 480px.
 export default function App() {
   useGlobalStyles();
-  const { tab, studying, exitOpen, exited, goTab, openStudy, closeStudy, cancelExit, confirmExit, reopen } = useNav();
+  const { tab, studying, studyCategory, category, exitOpen, exited, goTab, openStudy, closeStudy, openCategory, closeCategory, cancelExit, confirmExit, reopen } = useNav();
+
 
   // Баромад аз таби браузер имконнопазир аст — экрани «баста шуд»
   if (exited) {
@@ -90,6 +97,7 @@ export default function App() {
               clearSession(STUDY_KEY, GAMES_KEY);
               closeStudy();
             }}
+            categoryId={studyCategory}
           />
         </View>
       </View>
@@ -99,14 +107,29 @@ export default function App() {
   return (
     <View style={styles.outer}>
       <View style={styles.page}>
-        {tab === 'home' && <HomeScreen
+        {tab === 'home' && (
+          <HomeScreen
             onStudy={() => {
               clearSession(STUDY_KEY, GAMES_KEY); // ҷаласаи нав
               openStudy();
             }}
-          />}
+          />
+        )}
+        {tab === 'dict' &&
+          (category ? (
+            <CategoryScreen
+              categoryId={category}
+              onBack={closeCategory}
+              onStudy={(id) => {
+                clearSession(STUDY_KEY, GAMES_KEY);
+                openStudy(id);
+              }}
+            />
+          ) : (
+            <DictionariesScreen onOpen={openCategory} />
+          ))}
         {tab === 'profile' && <ProfileScreen />}
-        {tab !== 'home' && tab !== 'profile' && <Soon />}
+        {tab !== 'home' && tab !== 'dict' && tab !== 'profile' && <Soon />}
       </View>
       <BottomNav active={tab} onChange={goTab} />
       <StatusBar style="dark" />

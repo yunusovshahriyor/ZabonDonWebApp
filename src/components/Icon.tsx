@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 // Иконаҳои outline (услуби Feather/Lucide), stroke 1.8
 const icons = {
@@ -96,6 +96,13 @@ const icons = {
     </>
   ),
   check: <Path d="M20 6L9 17l-5-5" />,
+  back: <Path d="M15 18l-6-6 6-6" />,
+  lock: (
+    <>
+      <Rect x={3} y={11} width={18} height={11} rx={2} />
+      <Path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </>
+  ),
   sparkle: <Path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" />,
 };
 
