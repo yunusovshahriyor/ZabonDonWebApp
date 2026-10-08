@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../components/Icon';
 import { Tap } from '../components/Tap';
-import { COINS_PER_WORD, WORDS, Word, answer, demo, getSessionWords, markKnown, resetProgress, useProgress } from '../data';
+import { WordThumb } from '../components/WordThumb';
+import { getAllWords, retryLoadContent, useContent } from '../content';
+import { COINS_PER_WORD, Word, answer, demo, getSessionWords, markKnown, resetProgress, useProgress } from '../data';
 import { STUDY_KEY, getSession, setSession } from '../session';
 import { t } from '../strings';
 import { colors, glass, softShadow } from '../theme';
@@ -19,8 +21,11 @@ type Phase = 'cards' | 'games' | 'roundDone' | 'finish';
  *  • Вақте навбат ба 5 калима расид (ё карт-ҳо тамом шуданд) — бозиҳо бо ҳамон калимаҳо то аз худ шудан.
  *  • Баъд карт-ҳои навбатӣ.
  */
-type Saved = { deck: number[]; pos: number; queue: number[]; gameWords: number[]; phase: Phase; stats: { known: number; mastered: number; mistakes: number } };
-const byIds = (ids: number[]) => ids.map((id) => WORDS.find((w) => w.id === id)).filter((w): w is Word => !!w);
+type Saved = { deck: string[]; pos: number; queue: string[]; gameWords: string[]; phase: Phase; stats: { known: number; mastered: number; mistakes: number } };
+const byIds = (ids: string[]) => {
+  const all = getAllWords();
+  return ids.map((id) => all.find((w) => w.id === id)).filter((w): w is Word => !!w);
+};
 
 /** Ҳолати нигоҳдошташудаи ҷаласа (пас аз навсозии саҳифа); агар вайрон бошад — null. */
 function readSaved(): { deck: Word[]; pos: number; queue: Word[]; gameWords: Word[]; phase: Phase; stats: Saved['stats'] } | null {
@@ -34,10 +39,11 @@ function readSaved(): { deck: Word[]; pos: number; queue: Word[]; gameWords: Wor
   return { deck, pos: sv.pos, queue, gameWords, phase: sv.phase, stats: sv.stats };
 }
 
-export function StudyScreen({ onClose }: { onClose: () => void }) {
+export function StudyScreen({ onClose, categoryId }: { onClose: () => void; categoryId?: string }) {
   useProgress();
+  const { status } = useContent();
   const [init] = useState(readSaved);
-  const [deck, setDeck] = useState<Word[]>(() => init?.deck ?? getSessionWords());
+  const [deck, setDeck] = useState<Word[]>(() => init?.deck ?? getSessionWords(categoryId));
   const [pos, setPos] = useState(init?.pos ?? 0);
   const [queue, setQueue] = useState<Word[]>(init?.queue ?? []);
   const [gameWords, setGameWords] = useState<Word[]>(init?.gameWords ?? []);
@@ -55,8 +61,14 @@ export function StudyScreen({ onClose }: { onClose: () => void }) {
     } satisfies Saved);
   }, [deck, pos, queue, gameWords, phase, stats]);
 
+  // Агар мундариҷа ҳанӯз бор нашуда буд ва ҳозир омад — тахтаро месозем
+  useEffect(() => {
+    if (status === 'ready' && pos === 0 && phase === 'cards' && deck.length === 0) setDeck(getSessionWords(categoryId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
   const restart = () => {
-    setDeck(getSessionWords());
+    setDeck(getSessionWords(categoryId));
     setPos(0);
     setQueue([]);
     setGameWords([]);
@@ -84,6 +96,23 @@ export function StudyScreen({ onClose }: { onClose: () => void }) {
       if (nextPos >= deck.length) setPhase('finish');
     }
   };
+
+  // Мундариҷа аз база бор мешавад / хато
+  if (deck.length === 0 && status !== 'ready') {
+    return (
+      <View style={{ flex: 1 }}>
+        <StudyHeader onClose={onClose} progress={0} label="" />
+        <View style={s.center}>
+          <Text style={s.title}>{status === 'error' ? t.loadError : t.loading}</Text>
+          {status === 'error' ? (
+            <View style={{ alignSelf: 'stretch', marginTop: 24 }}>
+              <PrimaryBtn label={t.retry} onPress={retryLoadContent} />
+            </View>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
 
   // Ҳама калимаҳо омӯхта шудаанд
   if (deck.length === 0) {
@@ -151,7 +180,7 @@ export function StudyScreen({ onClose }: { onClose: () => void }) {
           <View style={s.chips}>
             {gameWords.map((w) => (
               <View key={w.id} style={s.wordChip}>
-                <Text style={{ fontSize: 20 }}>{w.emoji}</Text>
+                <WordThumb image={w.image} letter={w.ru} size={34} radius={10} />
                 <Text style={s.wordChipText}>
                   {w.ru} — {w.tj}
                 </Text>

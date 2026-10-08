@@ -1,24 +1,10 @@
 import { useSyncExternalStore } from 'react';
+import { getAllWords, getCategories, getWordsByCategory, onContentChange, type Word } from './content';
 import { t } from './strings';
 import type { IconName } from './components/Icon';
 
-// ---------- Калимаҳои намунавӣ барои санҷиши мантиқи омӯзиш ----------
-/** image — URL-и акси калима (дар барномаи воқеӣ аз база); агар набошад, иллюстратсияи WordArt нишон дода мешавад. */
-export type Word = { id: number; emoji: string; image?: string; ipa: string; ru: string; tj: string; exRu: string; exTj: string };
+export type { Word } from './content';
 export type WordStatus = 'new' | 'repeat' | 'known';
-
-export const WORDS: Word[] = [
-  { id: 1, ipa: '/prʲɪˈvʲet/', emoji: '👋', ru: 'привет', tj: 'салом', exRu: 'Привет, как дела?', exTj: 'Салом, корҳо чӣ тавр?' },
-  { id: 2, ipa: '/spɐˈsʲibə/', emoji: '🙏', ru: 'спасибо', tj: 'ташаккур', exRu: 'Большое спасибо!', exTj: 'Ташаккури калон!' },
-  { id: 3, ipa: '/ˈpoʐəlstə/', emoji: '🤝', ru: 'пожалуйста', tj: 'марҳамат', exRu: 'Пожалуйста, садитесь.', exTj: 'Марҳамат, шинед.' },
-  { id: 4, ipa: '/xlʲep/', emoji: '🍞', ru: 'хлеб', tj: 'нон', exRu: 'Я купил хлеб.', exTj: 'Ман нон харидам.' },
-  { id: 5, ipa: '/vɐˈda/', emoji: '💧', ru: 'вода', tj: 'об', exRu: 'Дайте воды, пожалуйста.', exTj: 'Лутфан об диҳед.' },
-  { id: 6, ipa: '/dom/', emoji: '🏠', ru: 'дом', tj: 'хона', exRu: 'Это мой дом.', exTj: 'Ин хонаи ман аст.' },
-  { id: 7, ipa: '/druk/', emoji: '🧑‍🤝‍🧑', ru: 'друг', tj: 'дӯст', exRu: 'Он мой друг.', exTj: 'Ӯ дӯсти ман аст.' },
-  { id: 8, ipa: '/ˈknʲigə/', emoji: '📖', ru: 'книга', tj: 'китоб', exRu: 'Я читаю книгу.', exTj: 'Ман китоб мехонам.' },
-  { id: 9, ipa: '/ˈɡorət/', emoji: '🏙️', ru: 'город', tj: 'шаҳр', exRu: 'Душанбе — красивый город.', exTj: 'Душанбе шаҳри зебо аст.' },
-  { id: 10, ipa: '/rɐˈbotə/', emoji: '💼', ru: 'работа', tj: 'кор', exRu: 'Я иду на работу.', exTj: 'Ман ба кор меравам.' },
-];
 
 export const COINS_PER_WORD = 5;
 export const SESSION_SIZE = 10;
@@ -26,29 +12,31 @@ export const SESSION_SIZE = 10;
 // ---------- Ҳолати пешравӣ (мағозаи оддӣ + localStorage) ----------
 const fmt = (n: number) => n.toLocaleString('ru-RU').replace(/ | /g, ' ');
 
-const BASE = { streak: 3, coinsNum: 1240, daily: 2, goal: 5, total: 58, repeat: 1, learned: 1 };
+const BASE = { streak: 3, coinsNum: 1240, daily: 0, goal: 5 };
 
 // Объекти зинда: компонентҳо онро мехонанд, пас аз тағйир useProgress() онҳоро аз нав мекашад.
+// total/repeat/learned аз ҳолати калимаҳои воқеии база ҳисоб мешаванд (recount).
 export const demo = {
   streak: BASE.streak,
   coinsNum: BASE.coinsNum,
   coins: fmt(BASE.coinsNum),
   daily: BASE.daily,
   goal: BASE.goal,
-  total: BASE.total,
-  repeat: BASE.repeat,
-  learned: BASE.learned,
+  total: 0,
+  repeat: 0,
+  learned: 0,
   achievement: { current: 3, target: 5 },
 };
 
-let statuses: Record<number, WordStatus> = {};
+let statuses: Record<string, WordStatus> = {};
 let version = 0;
 const listeners = new Set<() => void>();
-const KEY = 'zabondon_progress_v1';
+const KEY = 'zabondon_progress_v2';
 
 function save() {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ d: { ...demo }, statuses }));
+    const { streak, coinsNum, daily, goal } = demo;
+    localStorage.setItem(KEY, JSON.stringify({ d: { streak, coinsNum, daily, goal }, statuses }));
   } catch {
     /* localStorage дастнорас аст */
   }
@@ -60,17 +48,41 @@ function load() {
     if (!raw) return;
     const { d, statuses: st } = JSON.parse(raw);
     Object.assign(demo, d);
+    demo.coins = fmt(demo.coinsNum);
     statuses = st ?? {};
   } catch {
     /* маълумоти вайрон — аз нав оғоз */
   }
 }
+
+/** Оморро аз рӯи калимаҳои воқеии база ва ҳолати онҳо аз нав ҳисоб мекунад. */
+function recount() {
+  const words = getAllWords();
+  let known = 0;
+  let repeat = 0;
+  for (const w of words) {
+    const s = statuses[w.id];
+    if (s === 'known') known += 1;
+    else if (s === 'repeat') repeat += 1;
+  }
+  demo.learned = known;
+  demo.repeat = repeat;
+  demo.total = Math.max(0, words.length - known - repeat);
+}
+
 load();
+recount();
 
 function emit() {
   version += 1;
   listeners.forEach((l) => l());
 }
+
+// Вақте мундариҷа аз база омад — оморро нав мекунем
+onContentChange(() => {
+  recount();
+  emit();
+});
 
 /** Компонентро ҳангоми тағйири пешравӣ аз нав мекашад. */
 export function useProgress() {
@@ -84,42 +96,46 @@ export function useProgress() {
   return demo;
 }
 
-export const statusOf = (id: number): WordStatus => statuses[id] ?? 'new';
+export const statusOf = (id: string): WordStatus => statuses[id] ?? 'new';
 
-/** Калимаҳои ҷаласа: ҳанӯз омӯхта нашуда (нав + барои такрор), то 10 адад. */
-export function getSessionWords(): Word[] {
-  return WORDS.filter((w) => statusOf(w.id) !== 'known').slice(0, SESSION_SIZE);
+/**
+ * Калимаҳои ҷаласа (то 10): ҳанӯз омӯхта нашуда.
+ * Бо categoryId — аз ҳамон категория; бе он — аз категорияҳои ройгон мувофиқи тартиби категорияҳо.
+ */
+export function getSessionWords(categoryId?: string): Word[] {
+  let pool: Word[];
+  if (categoryId) {
+    pool = getWordsByCategory(categoryId);
+  } else {
+    pool = getCategories()
+      .filter((c) => !c.isPremium)
+      .flatMap((c) => getWordsByCategory(c.id));
+  }
+  return pool.filter((w) => statusOf(w.id) !== 'known').slice(0, SESSION_SIZE);
 }
 
 /** "Медонам" дар карти шиносӣ: калима бевосита ба рӯйхати омӯхташудаҳо мегузарад (бе танга ва бе ҳадафи рӯз). */
-export function markKnown(id: number) {
-  const prev = statusOf(id);
-  if (prev === 'known') return;
+export function markKnown(id: string) {
+  if (statusOf(id) === 'known') return;
   statuses[id] = 'known';
-  demo.learned += 1;
-  if (prev === 'new') demo.total -= 1;
-  else demo.repeat -= 1;
+  recount();
   save();
   emit();
 }
 
-/** Ҷавоби корбар: "Медонам" (known) ё "Такрор мекунам". */
-export function answer(id: number, known: boolean) {
+/** Ҷавоби корбар: known=true — калима аз худ шуд; false — ба омӯзиш фиристода шуд. */
+export function answer(id: string, known: boolean) {
   const prev = statusOf(id);
   if (prev === 'known') return;
   if (known) {
     statuses[id] = 'known';
-    demo.learned += 1;
     demo.daily += 1;
     demo.coinsNum += COINS_PER_WORD;
     demo.coins = fmt(demo.coinsNum);
-    if (prev === 'new') demo.total -= 1;
-    else demo.repeat -= 1;
   } else if (prev === 'new') {
     statuses[id] = 'repeat';
-    demo.total -= 1;
-    demo.repeat += 1;
   }
+  recount();
   save();
   emit();
 }
@@ -132,10 +148,8 @@ export function resetProgress() {
     coins: fmt(BASE.coinsNum),
     daily: BASE.daily,
     goal: BASE.goal,
-    total: BASE.total,
-    repeat: BASE.repeat,
-    learned: BASE.learned,
   });
+  recount();
   save();
   emit();
 }
