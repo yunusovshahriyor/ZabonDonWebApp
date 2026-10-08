@@ -282,6 +282,13 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
                   {t.rightAnswer} {correct}
                 </Text>
               ) : null}
+              {result === 'wrong' && q.type === 'match' ? (
+                <Text style={g.feedbackSub}>
+                  {t.rightAnswer}
+                  {'\n'}
+                  {q.pairs!.map((w) => `${w.ru} — ${w.tj}`).join('\n')}
+                </Text>
+              ) : null}
             </View>
           </View>
         )}
