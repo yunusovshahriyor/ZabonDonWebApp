@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Icon } from '../../components/Icon';
 import { ProgressRing } from '../../components/ProgressRing';
@@ -6,14 +6,52 @@ import { Tap } from '../../components/Tap';
 import { WORDS, Word, answer } from '../../data';
 import { t } from '../../strings';
 import { colors, glass, softShadow } from '../../theme';
+import { MatchBoard } from './Match';
 import { PrimaryBtn, StudyHeader, c, speak } from './common';
 
-// Зинаҳои азхудкунӣ: 0 → интихоби тарҷума, 1 → интихоби русӣ, 2 → навиштан, 3 → аз худ шуд.
-type QType = 'pickTj' | 'pickRu' | 'type';
-const TYPES: QType[] = ['pickTj', 'pickRu', 'type'];
-const MASTERED = 3;
+// Зинаҳои азхудкунӣ: 0 → интихоби тарҷума, 1 → интихоби русӣ, 2 → навиштан,
+// 3 → ҷуфтёбӣ, 4 → пур кардани ҷойи холӣ дар ҷумла, 5 → ҷамъ кардан аз ҳарфҳо, 6 → аз худ шуд.
+type QType = 'pickTj' | 'pickRu' | 'type' | 'match' | 'cloze' | 'scramble';
+const TYPES: QType[] = ['pickTj', 'pickRu', 'type', 'match', 'cloze', 'scramble'];
+const MASTERED = TYPES.length;
+const MATCH_PAIRS = 5;
 
-type Question = { word: Word; type: QType; options: string[] };
+type Question = {
+  word: Word;
+  type: QType;
+  options: string[];
+  pairs?: Word[]; // match
+  sentence?: string; // cloze: ҷумла бо "____" ба ҷои калима
+  letters?: string[]; // scramble
+};
+
+/** Ҷумлаи мисолро бо ҷойи холӣ месозад (шакли тағйирёфтаи калима низ ёфта мешавад: вода → воды). */
+function blankSentence(word: Word): string | null {
+  const base = norm(word.ru);
+  const stem = base.length >= 4 ? base.slice(0, -1) : base;
+  let found = false;
+  const out = word.exRu
+    .split(/(\s+)/)
+    .map((tok) => {
+      const m = tok.match(/^([^\p{L}]*)(\p{L}+)(.*)$/u);
+      if (!found && m && norm(m[2]).startsWith(stem)) {
+        found = true;
+        return `${m[1]}____${m[3]}`;
+      }
+      return tok;
+    })
+    .join('');
+  return found ? out : null;
+}
+
+/** Ҳарфҳои омехта; ҳамеша аз тартиби аслӣ фарқ мекунад (агар имкон бошад). */
+function scrambleLetters(ru: string): string[] {
+  const chars = [...ru.replace(/\s+/g, '')];
+  if (new Set(chars).size < 2) return chars;
+  let s = shuffle(chars);
+  while (s.join('') === chars.join('')) s = shuffle(chars);
+  return s;
+}
 
 const shuffle = <T,>(a: T[]) => [...a].sort(() => Math.random() - 0.5);
 const norm = (s: string) => s.trim().toLowerCase().replace(/ё/g, 'е');
@@ -26,17 +64,36 @@ function makeQuestion(words: Word[], stage: Record<number, number>, lastSeen: Re
   const minSeen = Math.min(...pool.map((w) => lastSeen[w.id] ?? -1));
   pool = pool.filter((w) => (lastSeen[w.id] ?? -1) === minSeen);
   const word = pool[Math.floor(Math.random() * pool.length)];
-  const type = TYPES[stage[word.id]];
+  let type = TYPES[stage[word.id]];
+  const sentence = type === 'cloze' ? blankSentence(word) : null;
+  if (type === 'cloze' && !sentence) type = 'pickRu'; // ҷумла нест ё калима дар он нест
+  if (type === 'match') {
+    const others = shuffle(words.filter((w) => w.id !== word.id)).sort((a, b) => Number(stage[b.id] === 3) - Number(stage[a.id] === 3));
+    let pairs = [word, ...others].slice(0, MATCH_PAIRS);
+    if (pairs.length < 3) {
+      const extra = shuffle(WORDS.filter((x) => !pairs.some((p) => p.id === x.id))).slice(0, 3 - pairs.length);
+      pairs = [...pairs, ...extra];
+    }
+    return { word, type, options: [], pairs };
+  }
+  if (type === 'scramble') return { word, type, options: [], letters: scrambleLetters(word.ru) };
   let options: string[] = [];
-  if (type !== 'type') {
+  if (type === 'pickTj' || type === 'pickRu' || type === 'cloze') {
     const key = type === 'pickTj' ? 'tj' : 'ru';
     const wrong = shuffle(WORDS.filter((x) => x.id !== word.id && x[key] !== word[key]).map((x) => x[key])).slice(0, 3);
     options = shuffle([word[key], ...wrong]);
   }
-  return { word, type, options };
+  return { word, type, options, sentence: sentence ?? undefined };
 }
 
-const promptText = (q: QType) => (q === 'pickTj' ? t.pickTjPrompt : q === 'pickRu' ? t.pickRuPrompt : t.typePrompt);
+const PROMPTS: Record<QType, string> = {
+  pickTj: t.pickTjPrompt,
+  pickRu: t.pickRuPrompt,
+  type: t.typePrompt,
+  match: t.matchPrompt,
+  cloze: t.clozePrompt,
+  scramble: t.scramblePrompt,
+};
 
 /** Бозиҳо: ҳамон 5 калима то ҳар кадом ба зинаи "аз худ шуд" расад. */
 export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mistakes: number) => void; onClose: () => void }) {
@@ -55,16 +112,33 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
   });
   const [picked, setPicked] = useState<string | null>(null);
   const [typed, setTyped] = useState('');
+  const [built, setBuilt] = useState<number[]>([]); // scramble: индекси ҳарфҳои интихобшуда
   const [result, setResult] = useState<'idle' | 'right' | 'wrong'>('idle');
+
+  const finishMatch = useCallback(
+    (wrongIds: number[]) => {
+      if (!q?.pairs) return;
+      const upd: Record<number, number> = {};
+      for (const w of q.pairs) {
+        if (stage[w.id] !== TYPES.indexOf('match')) continue; // танҳо калимаҳои дар ин зина буда пеш меравад
+        upd[w.id] = wrongIds.includes(w.id) ? Math.max(0, stage[w.id] - 1) : stage[w.id] + 1;
+      }
+      setStage((st) => ({ ...st, ...upd }));
+      if (wrongIds.length) setMistakes((n) => n + 1);
+      setResult(wrongIds.length ? 'wrong' : 'right');
+    },
+    [q, stage],
+  );
 
   if (!q) return null;
 
   const mastered = words.filter((w) => stage[w.id] >= MASTERED).length;
   const correct = q.type === 'pickTj' ? q.word.tj : q.word.ru;
+  const scrambleAnswer = q.letters ? built.map((i) => q.letters![i]).join('') : '';
 
   const submit = (value: string) => {
     if (result !== 'idle') return;
-    const ok = q.type === 'type' ? norm(value) === norm(q.word.ru) : value === correct;
+    const ok = q.type === 'type' || q.type === 'scramble' ? norm(value) === norm(q.word.ru.replace(/\s+/g, '')) : value === correct;
     setPicked(value);
     setResult(ok ? 'right' : 'wrong');
     const cur = stage[q.word.id];
@@ -89,6 +163,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
     setQ(nq);
     setPicked(null);
     setTyped('');
+    setBuilt([]);
     setResult('idle');
   };
 
@@ -109,7 +184,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
         <View style={[g.card, softShadow, glass]}>
           <View style={g.cardTop}>
             <View style={c.chip}>
-              <Text style={c.chipText}>{promptText(q.type)}</Text>
+              <Text style={c.chipText}>{PROMPTS[q.type]}</Text>
             </View>
             <View style={{ flex: 1 }} />
             {/* Прогреси худи ҳамин калима (зинаҳо: 0 → 3) */}
@@ -123,16 +198,43 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
               )}
             </ProgressRing>
           </View>
+          {q.type === 'match' ? (
+            <MatchBoard key={`${q.word.id}-${tick.current}`} pairs={q.pairs!} onFinish={finishMatch} />
+          ) : null}
+          {q.type !== 'match' && (
           <View style={g.promptRow}>
-            <Text style={g.prompt}>{prompt}</Text>
+            <Text style={g.prompt}>{q.type === 'cloze' ? q.sentence : prompt}</Text>
             {showSpeaker ? (
               <Tap style={g.speak} onPress={() => speak(q.word.ru)}>
                 <Icon name="volume" size={18} color={colors.green} />
               </Tap>
             ) : null}
           </View>
+          )}
+          {q.type === 'cloze' ? <Text style={g.hint}>{q.word.exTj}</Text> : null}
 
-          {q.type === 'type' ? (
+          {q.type === 'match' ? null : q.type === 'scramble' ? (
+            <View style={{ marginTop: 18, gap: 14 }}>
+              <View style={[g.slots, result === 'right' && g.optionRight, result === 'wrong' && g.optionWrong]}>
+                {built.map((i, pos) => (
+                  <Tap key={pos} style={g.tile} onPress={() => result === 'idle' && setBuilt((b) => b.filter((_, k) => k !== pos))}>
+                    <Text style={g.tileText}>{q.letters![i]}</Text>
+                  </Tap>
+                ))}
+              </View>
+              <View style={g.pool}>
+                {q.letters!.map((ch, i) => (
+                  <Tap
+                    key={i}
+                    style={[g.tile, built.includes(i) && { opacity: 0.2 }]}
+                    onPress={() => result === 'idle' && !built.includes(i) && setBuilt((b) => [...b, i])}
+                  >
+                    <Text style={g.tileText}>{ch}</Text>
+                  </Tap>
+                ))}
+              </View>
+            </View>
+          ) : q.type === 'type' ? (
             <View style={{ marginTop: 18 }}>
               <TextInput
                 value={typed}
@@ -163,7 +265,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
             <Icon name={result === 'right' ? 'check' : 'close'} size={20} color={result === 'right' ? colors.green : '#C0392B'} strokeWidth={2.6} />
             <View style={{ flex: 1 }}>
               <Text style={[g.feedbackTitle, { color: result === 'right' ? colors.green : '#C0392B' }]}>{result === 'right' ? t.correct : t.wrong}</Text>
-              {result === 'wrong' ? (
+              {result === 'wrong' && q.type !== 'match' ? (
                 <Text style={g.feedbackSub}>
                   {t.rightAnswer} {correct}
                 </Text>
@@ -175,7 +277,11 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
 
       <View style={c.actions}>
         {result === 'idle' ? (
-          q.type === 'type' ? <PrimaryBtn label={t.check} onPress={() => submit(typed)} disabled={!typed.trim()} /> : null
+          q.type === 'type' ? (
+            <PrimaryBtn label={t.check} onPress={() => submit(typed)} disabled={!typed.trim()} />
+          ) : q.type === 'scramble' ? (
+            <PrimaryBtn label={t.check} onPress={() => submit(scrambleAnswer)} disabled={built.length !== q.letters!.length} />
+          ) : null
         ) : (
           <PrimaryBtn label={t.next} onPress={advance} tone={result === 'right' ? 'green' : 'red'} />
         )}
@@ -190,6 +296,31 @@ const g = StyleSheet.create({
   card: { borderRadius: 28, padding: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: 'rgba(255,255,255,0.7)' },
   promptRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
   prompt: { flex: 1, fontSize: 36, fontWeight: '800', color: colors.text, letterSpacing: -0.8 },
+  hint: { marginTop: 8, fontSize: 15, color: colors.textSecondary, fontStyle: 'italic' },
+  slots: {
+    minHeight: 64,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    padding: 8,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: colors.greenLine,
+    backgroundColor: 'rgba(255,255,255,0.6)',
+  },
+  pool: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
+  tile: {
+    minWidth: 46,
+    height: 48,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderWidth: 1.5,
+    borderColor: colors.hairline,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileText: { fontSize: 22, fontWeight: '700', color: colors.text },
   speak: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.greenSoft, alignItems: 'center', justifyContent: 'center' },
   option: {
     minHeight: 52,
