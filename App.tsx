@@ -9,11 +9,10 @@ import { DictionariesScreen } from './src/screens/DictionariesScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { StudyScreen } from './src/screens/StudyScreen';
-import { isStandalone, setupPwa } from './src/pwa';
+import { setupPwa } from './src/pwa';
 import { GAMES_KEY, STUDY_KEY, clearSession } from './src/session';
 import { useNav } from './src/useNav';
 import { t } from './src/strings';
-import { Tap } from './src/components/Tap';
 import { colors } from './src/theme';
 
 // Мундариҷа (категорияҳо ва калимаҳо) аз Firestore: аз кэш фавран, баъд аз база нав мешавад.
@@ -45,47 +44,23 @@ function Soon() {
   );
 }
 
-function ExitDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
-  // Дар PWA барнома аз кодӣ баста намешавад: "Назад"-и системавӣ (дафъаи дуюм) мебарорад.
-  const standalone = isStandalone();
+/** Тоаст дар поёни экран (болотар аз менюи поёнӣ); бо шаффофият пайдо ва нопадид мешавад. */
+function Toast({ text, visible }: { text: string; visible: boolean }) {
   return (
-    <View style={styles.overlay}>
-      <View style={styles.dialog}>
-        <Text style={styles.dialogTitle}>{t.exitTitle}</Text>
-        <Text style={styles.dialogDesc}>{standalone ? t.exitHintStandalone : t.exitDesc}</Text>
-        <View style={styles.dialogRow}>
-          <Tap style={[styles.dialogBtn, styles.dialogCancel]} onPress={onCancel}>
-            <Text style={styles.dialogCancelText}>{t.exitCancel}</Text>
-          </Tap>
-          {standalone ? null : (
-            <Tap style={[styles.dialogBtn, styles.dialogConfirm]} onPress={onConfirm}>
-              <Text style={styles.dialogConfirmText}>{t.exitConfirm}</Text>
-            </Tap>
-          )}
-        </View>
+    <View pointerEvents="none" style={[styles.toastWrap, { opacity: visible ? 1 : 0, transform: [{ translateY: visible ? 0 : 12 }] }, toastMotion]}>
+      <View style={styles.toast}>
+        <Text style={styles.toastText}>{text}</Text>
       </View>
     </View>
   );
 }
+const toastMotion = { transition: 'opacity 220ms ease, transform 220ms ease' } as object;
 
 // Дар телефон экрани пурра; дар компютер — сутуни марказии 480px.
 export default function App() {
   useGlobalStyles();
-  const { tab, studying, studyCategory, category, exitOpen, exited, goTab, openStudy, closeStudy, openCategory, closeCategory, cancelExit, confirmExit, reopen } = useNav();
+  const { tab, studying, studyCategory, category, toast, goTab, openStudy, closeStudy, openCategory, closeCategory } = useNav();
 
-
-  // Баромад аз таби браузер имконнопазир аст — экрани «баста шуд»
-  if (exited) {
-    return (
-      <View style={[styles.outer, styles.soon]}>
-        <Text style={styles.exitedTitle}>{t.exitedTitle}</Text>
-        <Text style={styles.exitedDesc}>{t.exitedDesc}</Text>
-        <Tap style={[styles.dialogBtn, styles.dialogCancel, { marginTop: 22, paddingHorizontal: 28, flex: 0 }]} onPress={reopen}>
-          <Text style={styles.dialogCancelText}>{t.exitedReopen}</Text>
-        </Tap>
-      </View>
-    );
-  }
 
   // Ҷаласаи омӯзиш экрани пурра аст (бе менюи поёнӣ)
   if (studying) {
@@ -133,24 +108,15 @@ export default function App() {
       </View>
       <BottomNav active={tab} onChange={goTab} />
       <StatusBar style="dark" />
-      {exitOpen && <ExitDialog onCancel={cancelExit} onConfirm={confirmExit} />}
+      <Toast text={t.exitToast} visible={toast} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  exitedTitle: { fontSize: 22, fontWeight: '800', color: colors.text, letterSpacing: -0.4 },
-  exitedDesc: { fontSize: 15, color: colors.textSecondary, marginTop: 8, textAlign: 'center' },
-  overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(19, 37, 28, 0.45)', alignItems: 'center', justifyContent: 'center', padding: 24, zIndex: 100 },
-  dialog: { width: '100%', maxWidth: 360, backgroundColor: '#fff', borderRadius: 24, padding: 22, boxShadow: '0px 18px 48px rgba(18, 52, 36, 0.28)' },
-  dialogTitle: { fontSize: 19, fontWeight: '800', color: colors.text, letterSpacing: -0.3 },
-  dialogDesc: { fontSize: 15, color: colors.textSecondary, marginTop: 8, lineHeight: 21 },
-  dialogRow: { flexDirection: 'row', gap: 10, marginTop: 22 },
-  dialogBtn: { flex: 1, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  dialogCancel: { backgroundColor: colors.greenSoft },
-  dialogCancelText: { color: colors.green, fontSize: 15, fontWeight: '700' },
-  dialogConfirm: { backgroundColor: '#D8483B' },
-  dialogConfirmText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  toastWrap: { position: 'absolute', left: 0, right: 0, bottom: 108, alignItems: 'center', paddingHorizontal: 24, zIndex: 100 },
+  toast: { maxWidth: 360, backgroundColor: 'rgba(19, 37, 28, 0.92)', borderRadius: 22, paddingHorizontal: 18, paddingVertical: 12, boxShadow: '0px 10px 28px rgba(18, 52, 36, 0.28)' },
+  toastText: { color: '#fff', fontSize: 14, fontWeight: '600', textAlign: 'center', lineHeight: 20 },
   outer: { flex: 1, alignItems: 'center', backgroundColor: 'transparent' },
   page: { flex: 1, width: '100%', maxWidth: 480, backgroundColor: 'transparent' },
   soon: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
