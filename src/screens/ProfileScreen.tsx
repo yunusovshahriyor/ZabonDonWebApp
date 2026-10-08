@@ -1,5 +1,6 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../components/Icon';
+import { PullToRefresh } from '../components/PullToRefresh';
 import { Tap } from '../components/Tap';
 import { useInstall } from '../pwa';
 import { t } from '../strings';
@@ -51,10 +52,10 @@ function InstallCard() {
 
 export function ProfileScreen() {
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingTop: 16, paddingBottom: 100, gap: 12 }} showsVerticalScrollIndicator={false}>
+    <PullToRefresh style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingTop: 16, paddingBottom: 100, gap: 12 }} showsVerticalScrollIndicator={false}>
       <Text style={s.title}>{t.profileTitle}</Text>
       <InstallCard />
-    </ScrollView>
+    </PullToRefresh>
   );
 }
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { Icon } from '../../components/Icon';
+import { PullToRefresh } from '../../components/PullToRefresh';
 import { ProgressRing } from '../../components/ProgressRing';
 import { Tap } from '../../components/Tap';
 import { WORDS, Word, answer } from '../../data';
@@ -193,7 +194,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
   return (
     <View style={{ flex: 1 }}>
       <StudyHeader onClose={onClose} progress={mastered / words.length} label={`${t.masteredLabel} ${mastered}/${words.length}`} />
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 200 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <PullToRefresh contentContainerStyle={{ padding: 20, paddingBottom: 200 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={[g.card, softShadow, glass]}>
           <View style={g.cardTop}>
             <View style={c.chip}>
@@ -293,7 +294,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
             </View>
           </View>
         )}
-      </ScrollView>
+      </PullToRefresh>
 
       <View style={c.actions}>
         {result === 'idle' ? (

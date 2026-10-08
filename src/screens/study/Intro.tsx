@@ -1,5 +1,6 @@
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../../components/Icon';
+import { PullToRefresh } from '../../components/PullToRefresh';
 import { Tap } from '../../components/Tap';
 import { WordArt, ART_BG } from '../../components/WordArt';
 import type { Word } from '../../data';
@@ -26,7 +27,7 @@ export function Intro({ word: w, pos, total, queue, onKnow, onRepeat, onClose }:
     <View style={{ flex: 1 }}>
       <StudyHeader onClose={onClose} progress={pos / total} label={`${pos + 1}/${total}`} />
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 110, flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+      <PullToRefresh contentContainerStyle={{ padding: 20, paddingBottom: 110, flexGrow: 1 }} showsVerticalScrollIndicator={false}>
         {/* Навбати омӯзиш: 5 ҷой */}
         <View style={s.queueRow}>
           <Text style={s.queueLabel}>{t.queueLabel}</Text>
@@ -72,7 +73,7 @@ export function Intro({ word: w, pos, total, queue, onKnow, onRepeat, onClose }:
           </View>
         </View>
         </View>
-      </ScrollView>
+      </PullToRefresh>
 
       <View style={[c.actions, { flexDirection: 'row', gap: 12 }]}>
         <Tap style={[s.btn, s.btnKnow]} onPress={onKnow}>
