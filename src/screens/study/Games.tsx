@@ -120,7 +120,8 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
   useEffect(() => {
     if (result === 'idle') return;
     haptic(result);
-    if (result !== 'right') return;
+    // Ҷавоби дуруст ва ҳар натиҷаи ҷуфтёбӣ пас аз 2 сония худкор мегузаранд.
+    if (result !== 'right' && q?.type !== 'match') return;
     const id = setTimeout(() => advanceRef.current(), AUTO_NEXT_MS);
     return () => clearTimeout(id);
   }, [result]);
