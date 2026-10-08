@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import type { TabKey } from './components/BottomNav';
-import { isStandalone } from './pwa';
 
 export type Nav = { tab: TabKey; studying: boolean };
 
@@ -9,14 +8,22 @@ type HState = { zd: 1; tab: TabKey; studying: boolean } | { zd: 'exit' };
 
 const isWeb = Platform.OS === 'web' && typeof window !== 'undefined';
 const depthOf = (n: Nav) => (n.tab !== 'home' ? 1 : 0) + (n.studying ? 1 : 0);
+const HOME: HState = { zd: 1, tab: 'home', studying: false };
+
+/** Чанд сония тоаст намоён мемонад; дар ин вақт "Назад"-и дуюм барномаро мебарорад. */
+export const EXIT_TOAST_MS = 3000;
 
 /**
  * Навигатсия бо History API, то тугмаи "Назад"-и телефон/браузер кор кунад:
  *  • дар саҳифаҳои дигар — як қадам ба қафо (омӯзиш → саҳифаи пештара → асосӣ);
- *  • дар саҳифаи асосӣ — диалоги пурсиши баромад.
+ *  • дар саҳифаи асосӣ — тоасти «Барои баромад "Назад"-ро боз пахш кунед» (3 сония).
+ *    Агар дар ин муддат "Назад" боз пахш шавад — барнома мебарояд; вагарна тоаст нест мешавад
+ *    ва "Назад"-и навбатӣ боз тоастро нишон медиҳад.
  *
  * Стек: [сентинел "exit"] → [асосӣ] → [таб] → [омӯзиш]. Сентинел ва "асосӣ" танҳо бо аввалин ламс сохта мешаванд:
  * Chrome вуруди таърихеро, ки бе амали корбар илова шудааст, ҳангоми "Назад" мегузаронад.
+ * "Назад"-и аввал дар "асосӣ" ба сентинел меояд (тоаст); "Назад"-и дуюм аз сентинел мебарояд (дар PWA — аз барнома).
+ * Агар вақт гузашт, ба "асосӣ" бармегардем (history.go(1)).
  * Пас аз навсозии саҳифа стек ва ҳолат аз history.state барқарор мешаванд.
  */
 export function useNav() {
@@ -24,20 +31,26 @@ export function useNav() {
     const st = isWeb ? (history.state as HState | null) : null;
     return st && st.zd === 1 ? { tab: st.tab, studying: st.studying } : { tab: 'home', studying: false };
   });
-  const [exitOpen, setExitOpen] = useState(false);
-  const [exited, setExited] = useState(false); // баромад имконнопазир буд (таб бе таърихи пештара) — экрани «баста шуд»
+  const [toast, setToast] = useState(false);
   const navRef = useRef(nav);
   navRef.current = nav;
-  const exitOpenRef = useRef(false);
-  exitOpenRef.current = exitOpen;
   // Агар навсозӣ дар миёнаи стек бошад, стек аллакай ҳаст.
   const stackReady = useRef(isWeb && (history.state as HState | null)?.zd === 1);
+  const atSentinel = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ensureStack = useCallback(() => {
     if (!isWeb || stackReady.current) return;
     stackReady.current = true;
     history.replaceState({ zd: 'exit' } satisfies HState, '');
-    history.pushState({ zd: 1, tab: 'home', studying: false } satisfies HState, '');
+    history.pushState(HOME, '');
+  }, []);
+
+  const clearToast = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    atSentinel.current = false;
+    setToast(false);
   }, []);
 
   useEffect(() => {
@@ -48,11 +61,19 @@ export function useNav() {
     const onPop = (e: PopStateEvent) => {
       const st = e.state as HState | null;
       if (st?.zd === 'exit') {
-        // Ба сентинел расидем: дафъаи аввал — диалоги баромад, дафъаи дуюм — баромад.
-        if (exitOpenRef.current) confirmExit();
-        else setExitOpen(true);
+        // "Назад"-и аввал дар саҳифаи асосӣ: тоаст; "Назад"-и дуюм аз сентинел мебарояд.
+        atSentinel.current = true;
+        setToast(true);
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(() => {
+          timer.current = null;
+          if (!atSentinel.current) return;
+          atSentinel.current = false;
+          setToast(false);
+          history.go(1); // ба вуруди "асосӣ" бармегардем
+        }, EXIT_TOAST_MS);
       } else if (st?.zd === 1) {
-        setExitOpen(false);
+        clearToast();
         setNavState({ tab: st.tab, studying: st.studying });
       }
     };
@@ -60,8 +81,16 @@ export function useNav() {
     return () => {
       window.removeEventListener('pointerup', onFirstTouch, true);
       window.removeEventListener('popstate', onPop);
+      if (timer.current) clearTimeout(timer.current);
     };
-  }, [ensureStack]);
+  }, [ensureStack, clearToast]);
+
+  // Агар корбар ҳангоми тоаст ба ҷое равад (дар сентинел меистем), вуруди "асосӣ"-ро аз нав месозем.
+  const leaveSentinel = useCallback(() => {
+    if (!isWeb || !atSentinel.current) return;
+    clearToast();
+    history.pushState(HOME, '');
+  }, [clearToast]);
 
   const goTab = useCallback(
     (tab: TabKey) => {
@@ -69,6 +98,7 @@ export function useNav() {
       if (tab === cur.tab) return;
       if (!isWeb) return setNavState({ tab, studying: false });
       ensureStack();
+      leaveSentinel();
       if (tab === 'home') {
         const d = depthOf(cur);
         if (d > 0) history.go(-d); // popstate ҳолатро ба "асосӣ" бармегардонад
@@ -80,57 +110,23 @@ export function useNav() {
       else history.replaceState(s, '');
       setNavState({ tab, studying: false });
     },
-    [ensureStack],
+    [ensureStack, leaveSentinel],
   );
 
   const openStudy = useCallback(() => {
     const cur = navRef.current;
     if (isWeb) {
       ensureStack();
+      leaveSentinel();
       history.pushState({ zd: 1, tab: cur.tab, studying: true } satisfies HState, '');
     }
     setNavState({ tab: cur.tab, studying: true });
-  }, [ensureStack]);
+  }, [ensureStack, leaveSentinel]);
 
   const closeStudy = useCallback(() => {
     if (isWeb && stackReady.current) history.back(); // popstate ҳолатро барқарор мекунад
     else setNavState({ tab: navRef.current.tab, studying: false });
   }, []);
 
-  const cancelExit = useCallback(() => {
-    if (isWeb) history.go(1); // ба вуруди "асосӣ" бармегардем
-    setExitOpen(false);
-  }, []);
-
-  /**
-   * Баромад (таби браузер): (1) "Назад" ба саҳифаи пеш; (2) window.close();
-   * (3) агар ҳеҷ кадом кор накард (таби браузер бе таърих) — экрани «Барнома баста шуд».
-   */
-  const confirmExit = useCallback(() => {
-    // PWA: браузер ба сайт бастани барномаро намедиҳад (window.close() танҳо бо таърихи як вуруд кор мекунад).
-    // Дар ин ҳолат баромад — "Назад"-и системавӣ аз вуруди аввал; диалог инро ба корбар мегӯяд.
-    if (!isWeb || isStandalone()) return;
-    let left = false;
-    const mark = () => {
-      left = true;
-    };
-    window.addEventListener('pagehide', mark, { once: true });
-    document.addEventListener('visibilitychange', () => document.hidden && mark(), { once: true });
-    history.back();
-    setTimeout(() => {
-      if (left) return;
-      window.close();
-      setTimeout(() => {
-        if (!left) setExited(true);
-      }, 300);
-    }, 300);
-  }, []);
-
-  const reopen = useCallback(() => {
-    setExited(false);
-    setExitOpen(false);
-    if (isWeb) history.go(1);
-  }, []);
-
-  return { ...nav, exitOpen, exited, goTab, openStudy, closeStudy, cancelExit, confirmExit, reopen };
+  return { ...nav, toast, goTab, openStudy, closeStudy };
 }
