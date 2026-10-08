@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../components/Icon';
 import { PullToRefresh } from '../components/PullToRefresh';
 import { Tap } from '../components/Tap';
-import { COINS_PER_WORD, Word, answer, demo, getSessionWords, markKnown, resetProgress, useProgress } from '../data';
+import { COINS_PER_WORD, WORDS, Word, answer, demo, getSessionWords, markKnown, resetProgress, useProgress } from '../data';
+import { STUDY_KEY, getSession, setSession } from '../session';
 import { t } from '../strings';
 import { colors, glass, softShadow } from '../theme';
 import { Games } from './study/Games';
@@ -19,14 +20,41 @@ type Phase = 'cards' | 'games' | 'roundDone' | 'finish';
  *  • Вақте навбат ба 5 калима расид (ё карт-ҳо тамом шуданд) — бозиҳо бо ҳамон калимаҳо то аз худ шудан.
  *  • Баъд карт-ҳои навбатӣ.
  */
+type Saved = { deck: number[]; pos: number; queue: number[]; gameWords: number[]; phase: Phase; stats: { known: number; mastered: number; mistakes: number } };
+const byIds = (ids: number[]) => ids.map((id) => WORDS.find((w) => w.id === id)).filter((w): w is Word => !!w);
+
+/** Ҳолати нигоҳдошташудаи ҷаласа (пас аз навсозии саҳифа); агар вайрон бошад — null. */
+function readSaved(): { deck: Word[]; pos: number; queue: Word[]; gameWords: Word[]; phase: Phase; stats: Saved['stats'] } | null {
+  const sv = getSession<Saved>(STUDY_KEY);
+  if (!sv) return null;
+  const deck = byIds(sv.deck);
+  const queue = byIds(sv.queue);
+  const gameWords = byIds(sv.gameWords);
+  if (deck.length !== sv.deck.length || queue.length !== sv.queue.length || gameWords.length !== sv.gameWords.length) return null;
+  if (sv.phase === 'games' && gameWords.length === 0) return null;
+  return { deck, pos: sv.pos, queue, gameWords, phase: sv.phase, stats: sv.stats };
+}
+
 export function StudyScreen({ onClose }: { onClose: () => void }) {
   useProgress();
-  const [deck, setDeck] = useState<Word[]>(() => getSessionWords());
-  const [pos, setPos] = useState(0);
-  const [queue, setQueue] = useState<Word[]>([]);
-  const [gameWords, setGameWords] = useState<Word[]>([]);
-  const [phase, setPhase] = useState<Phase>('cards');
-  const [stats, setStats] = useState({ known: 0, mastered: 0, mistakes: 0 });
+  const [init] = useState(readSaved);
+  const [deck, setDeck] = useState<Word[]>(() => init?.deck ?? getSessionWords());
+  const [pos, setPos] = useState(init?.pos ?? 0);
+  const [queue, setQueue] = useState<Word[]>(init?.queue ?? []);
+  const [gameWords, setGameWords] = useState<Word[]>(init?.gameWords ?? []);
+  const [phase, setPhase] = useState<Phase>(init?.phase ?? 'cards');
+  const [stats, setStats] = useState(init?.stats ?? { known: 0, mastered: 0, mistakes: 0 });
+
+  useEffect(() => {
+    setSession(STUDY_KEY, {
+      deck: deck.map((w) => w.id),
+      pos,
+      queue: queue.map((w) => w.id),
+      gameWords: gameWords.map((w) => w.id),
+      phase,
+      stats,
+    } satisfies Saved);
+  }, [deck, pos, queue, gameWords, phase, stats]);
 
   const restart = () => {
     setDeck(getSessionWords());

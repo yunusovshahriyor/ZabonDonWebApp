@@ -7,6 +7,7 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { StudyScreen } from './src/screens/StudyScreen';
 import { setupPwa } from './src/pwa';
+import { GAMES_KEY, NAV_KEY, STUDY_KEY, clearSession, getSession, setSession } from './src/session';
 import { colors } from './src/theme';
 
 // Шрифти Inter (кириллика) + фони мулоими мятӣ барои тамоми сайт.
@@ -38,15 +39,25 @@ function Soon() {
 // Дар телефон экрани пурра; дар компютер — сутуни марказии 480px.
 export default function App() {
   useGlobalStyles();
-  const [tab, setTab] = useState<TabKey>('home');
-  const [studying, setStudying] = useState(false);
+  // Пас аз навсозии саҳифа (кашидан ё F5) корбар дар ҳамон саҳифа мемонад.
+  const [saved] = useState(() => getSession<{ tab: TabKey; studying: boolean }>(NAV_KEY));
+  const [tab, setTab] = useState<TabKey>(saved?.tab ?? 'home');
+  const [studying, setStudying] = useState(saved?.studying ?? false);
+  useEffect(() => {
+    setSession(NAV_KEY, { tab, studying });
+  }, [tab, studying]);
 
   // Ҷаласаи омӯзиш экрани пурра аст (бе менюи поёнӣ)
   if (studying) {
     return (
       <View style={styles.outer}>
         <View style={styles.page}>
-          <StudyScreen onClose={() => setStudying(false)} />
+          <StudyScreen
+            onClose={() => {
+              clearSession(STUDY_KEY, GAMES_KEY);
+              setStudying(false);
+            }}
+          />
         </View>
       </View>
     );
@@ -55,7 +66,12 @@ export default function App() {
   return (
     <View style={styles.outer}>
       <View style={styles.page}>
-        {tab === 'home' && <HomeScreen onStudy={() => setStudying(true)} />}
+        {tab === 'home' && <HomeScreen
+            onStudy={() => {
+              clearSession(STUDY_KEY, GAMES_KEY); // ҷаласаи нав
+              setStudying(true);
+            }}
+          />}
         {tab === 'profile' && <ProfileScreen />}
         {tab !== 'home' && tab !== 'profile' && <Soon />}
       </View>

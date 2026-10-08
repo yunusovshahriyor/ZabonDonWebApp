@@ -5,6 +5,7 @@ import { PullToRefresh } from '../../components/PullToRefresh';
 import { ProgressRing } from '../../components/ProgressRing';
 import { Tap } from '../../components/Tap';
 import { WORDS, Word, answer } from '../../data';
+import { GAMES_KEY, clearSession, getSession, setSession } from '../../session';
 import { t } from '../../strings';
 import { colors, glass, softShadow } from '../../theme';
 import { MatchBoard } from './Match';
@@ -99,13 +100,22 @@ const PROMPTS: Record<QType, string> = {
 
 /** Бозиҳо: ҳамон 5 калима то ҳар кадом ба зинаи "аз худ шуд" расад. */
 export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mistakes: number) => void; onClose: () => void }) {
-  const [stage, setStage] = useState<Record<number, number>>(() => Object.fromEntries(words.map((w) => [w.id, 0])));
+  // Пас аз навсозии саҳифа зинаҳо ва хатогиҳои ҳамин раунд барқарор мешаванд.
+  const roundKey = words.map((w) => w.id).join('-');
+  const [init] = useState(() => {
+    const sv = getSession<{ key: string; stage: Record<number, number>; mistakes: number }>(GAMES_KEY);
+    return sv && sv.key === roundKey && words.every((w) => typeof sv.stage[w.id] === 'number') ? sv : null;
+  });
+  const [stage, setStage] = useState<Record<number, number>>(() => init?.stage ?? Object.fromEntries(words.map((w) => [w.id, 0])));
   const lastSeen = useRef<Record<number, number>>({});
   const lastId = useRef<number | null>(null);
   const tick = useRef(0);
-  const [mistakes, setMistakes] = useState(0);
+  const [mistakes, setMistakes] = useState(init?.mistakes ?? 0);
+  useEffect(() => {
+    setSession(GAMES_KEY, { key: roundKey, stage, mistakes });
+  }, [roundKey, stage, mistakes]);
   const [q, setQ] = useState<Question | null>(() => {
-    const first = makeQuestion(words, Object.fromEntries(words.map((w) => [w.id, 0])), {}, null);
+    const first = makeQuestion(words, init?.stage ?? Object.fromEntries(words.map((w) => [w.id, 0])), {}, null);
     if (first) {
       lastSeen.current[first.word.id] = 0;
       lastId.current = first.word.id;
@@ -163,6 +173,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
   const advance = () => {
     const nextStage = stage; // дар submit навсозӣ шудааст
     if (words.every((w) => nextStage[w.id] >= MASTERED)) {
+      clearSession(GAMES_KEY);
       onDone(mistakes);
       return;
     }
