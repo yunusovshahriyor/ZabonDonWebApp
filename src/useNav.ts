@@ -24,6 +24,7 @@ export function useNav() {
     return st && st.zd === 1 ? { tab: st.tab, studying: st.studying } : { tab: 'home', studying: false };
   });
   const [exitOpen, setExitOpen] = useState(false);
+  const [exited, setExited] = useState(false); // баромад имконнопазир буд (таб бе таърихи пештара) — экрани «баста шуд»
   const navRef = useRef(nav);
   navRef.current = nav;
   const exitOpenRef = useRef(false);
@@ -47,7 +48,7 @@ export function useNav() {
       const st = e.state as HState | null;
       if (st?.zd === 'exit') {
         // Ба сентинел расидем: дафъаи аввал — диалоги баромад, дафъаи дуюм — баромад.
-        if (exitOpenRef.current) history.back();
+        if (exitOpenRef.current) confirmExit();
         else setExitOpen(true);
       } else if (st?.zd === 1) {
         setExitOpen(false);
@@ -100,12 +101,33 @@ export function useNav() {
     setExitOpen(false);
   }, []);
 
+  /**
+   * Баромад: (1) "Назад" ба саҳифаи пеш; (2) window.close() (дар PWA-и насбшуда кор мекунад);
+   * (3) агар ҳеҷ кадом кор накард (таби браузер бе таърих) — экрани «Барнома баста шуд».
+   */
   const confirmExit = useCallback(() => {
     if (!isWeb) return;
-    // Дар PWA баромад аз барнома; дар таб — ба саҳифаи пеш. Агар таърих набошад, пӯшидани равзана.
+    let left = false;
+    const mark = () => {
+      left = true;
+    };
+    window.addEventListener('pagehide', mark, { once: true });
+    document.addEventListener('visibilitychange', () => document.hidden && mark(), { once: true });
     history.back();
-    setTimeout(() => window.close(), 150);
+    setTimeout(() => {
+      if (left) return;
+      window.close();
+      setTimeout(() => {
+        if (!left) setExited(true);
+      }, 300);
+    }, 300);
   }, []);
 
-  return { ...nav, exitOpen, goTab, openStudy, closeStudy, cancelExit, confirmExit };
+  const reopen = useCallback(() => {
+    setExited(false);
+    setExitOpen(false);
+    if (isWeb) history.go(1);
+  }, []);
+
+  return { ...nav, exitOpen, exited, goTab, openStudy, closeStudy, cancelExit, confirmExit, reopen };
 }
