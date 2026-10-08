@@ -16,6 +16,16 @@ export function speak(text: string) {
   }
 }
 
+/** Вибратсия (Web Vibration API; дар iOS Safari дастгирӣ намешавад): дуруст — хеле сабук, хато — қавитар. */
+export function haptic(kind: 'right' | 'wrong') {
+  if (Platform.OS !== 'web' || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+  try {
+    navigator.vibrate(kind === 'right' ? 8 : [120, 60, 160]);
+  } catch {
+    /* вибратсия дастнорас аст */
+  }
+}
+
 /** Боло: пӯшидан, навори пешравӣ, нишондиҳандаи марҳала. */
 export function StudyHeader({ onClose, progress, label }: { onClose: () => void; progress: number; label: string }) {
   return (

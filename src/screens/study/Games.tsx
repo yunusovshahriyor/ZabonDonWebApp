@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Icon } from '../../components/Icon';
 import { ProgressRing } from '../../components/ProgressRing';
@@ -7,7 +7,7 @@ import { WORDS, Word, answer } from '../../data';
 import { t } from '../../strings';
 import { colors, glass, softShadow } from '../../theme';
 import { MatchBoard } from './Match';
-import { PrimaryBtn, StudyHeader, c, speak } from './common';
+import { PrimaryBtn, StudyHeader, c, haptic, speak } from './common';
 
 // Зинаҳои азхудкунӣ: 0 → интихоби тарҷума, 1 → интихоби русӣ, 2 → навиштан,
 // 3 → ҷуфтёбӣ, 4 → пур кардани ҷойи холӣ дар ҷумла, 5 → ҷамъ кардан аз ҳарфҳо, 6 → аз худ шуд.
@@ -15,6 +15,7 @@ type QType = 'pickTj' | 'pickRu' | 'type' | 'match' | 'cloze' | 'scramble';
 const TYPES: QType[] = ['pickTj', 'pickRu', 'type', 'match', 'cloze', 'scramble'];
 const MASTERED = TYPES.length;
 const MATCH_PAIRS = 5;
+const AUTO_NEXT_MS = 2000; // пас аз ҷавоби дуруст ба саволи навбатӣ худкор мегузарад
 
 type Question = {
   word: Word;
@@ -115,6 +116,15 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
   const [built, setBuilt] = useState<number[]>([]); // scramble: индекси ҳарфҳои интихобшуда
   const [result, setResult] = useState<'idle' | 'right' | 'wrong'>('idle');
 
+  const advanceRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (result === 'idle') return;
+    haptic(result);
+    if (result !== 'right') return;
+    const id = setTimeout(() => advanceRef.current(), AUTO_NEXT_MS);
+    return () => clearTimeout(id);
+  }, [result]);
+
   const finishMatch = useCallback(
     (wrongIds: number[]) => {
       if (!q?.pairs) return;
@@ -166,6 +176,8 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
     setBuilt([]);
     setResult('idle');
   };
+
+  advanceRef.current = advance;
 
   const optionStyle = (opt: string) => {
     if (result === 'idle') return [g.option];
@@ -270,6 +282,13 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
                   {t.rightAnswer} {correct}
                 </Text>
               ) : null}
+              {result === 'wrong' && q.type === 'match' ? (
+                <Text style={g.feedbackSub}>
+                  {t.rightAnswer}
+                  {'\n'}
+                  {q.pairs!.map((w) => `${w.ru} — ${w.tj}`).join('\n')}
+                </Text>
+              ) : null}
             </View>
           </View>
         )}
@@ -335,14 +354,14 @@ const g = StyleSheet.create({
   optionWrong: { backgroundColor: '#FBE0DD', borderColor: '#D8483B' },
   optionText: { fontSize: 18, fontWeight: '600', color: colors.text },
   input: {
-    height: 56,
-    paddingHorizontal: 16,
-    borderRadius: 16,
+    height: 46,
+    paddingHorizontal: 14,
+    borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.9)',
     borderWidth: 1.5,
     borderColor: colors.greenLine,
-    fontSize: 22,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '500',
     color: colors.text,
     ...({ outlineStyle: 'none' } as object),
   },

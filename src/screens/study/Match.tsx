@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Tap } from '../../components/Tap';
 import { Word } from '../../data';
 import { colors } from '../../theme';
+import { haptic } from './common';
 
 const shuffle = <T,>(a: T[]) => [...a].sort(() => Math.random() - 0.5);
 
@@ -34,9 +35,11 @@ export function MatchBoard({ pairs, onFinish }: { pairs: Word[]; onFinish: (wron
     const ruId = side === 'ru' ? id : sel.id;
     const tjId = side === 'tj' ? id : sel.id;
     if (ruId === tjId) {
+      haptic('right');
       setMatched((m) => [...m, ruId]);
       setSel(null);
     } else {
+      haptic('wrong');
       wrong.current.add(ruId).add(tjId);
       setBad({ ru: ruId, tj: tjId });
       setSel(null);
