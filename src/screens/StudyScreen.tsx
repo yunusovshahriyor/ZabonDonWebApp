@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../components/Icon';
-import { PullToRefresh } from '../components/PullToRefresh';
 import { Tap } from '../components/Tap';
 import { COINS_PER_WORD, WORDS, Word, answer, demo, getSessionWords, markKnown, resetProgress, useProgress } from '../data';
 import { STUDY_KEY, getSession, setSession } from '../session';
@@ -178,7 +177,7 @@ export function StudyScreen({ onClose }: { onClose: () => void }) {
   return (
     <View style={{ flex: 1 }}>
       <StudyHeader onClose={onClose} progress={1} label={`${deck.length}/${deck.length}`} />
-      <PullToRefresh contentContainerStyle={s.finishWrap} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={s.finishWrap} showsVerticalScrollIndicator={false}>
         <View style={s.bigIcon}>
           <Icon name="award" size={36} color={colors.green} strokeWidth={2} />
         </View>
@@ -214,7 +213,7 @@ export function StudyScreen({ onClose }: { onClose: () => void }) {
         >
           <Text style={s.resetLink}>{t.resetProgress}</Text>
         </Tap>
-      </PullToRefresh>
+      </ScrollView>
     </View>
   );
 }
