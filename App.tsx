@@ -61,7 +61,20 @@ function ExitDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: 
 // Дар телефон экрани пурра; дар компютер — сутуни марказии 480px.
 export default function App() {
   useGlobalStyles();
-  const { tab, studying, exitOpen, goTab, openStudy, closeStudy, cancelExit, confirmExit } = useNav();
+  const { tab, studying, exitOpen, exited, goTab, openStudy, closeStudy, cancelExit, confirmExit, reopen } = useNav();
+
+  // Баромад аз таби браузер имконнопазир аст — экрани «баста шуд»
+  if (exited) {
+    return (
+      <View style={[styles.outer, styles.soon]}>
+        <Text style={styles.exitedTitle}>{t.exitedTitle}</Text>
+        <Text style={styles.exitedDesc}>{t.exitedDesc}</Text>
+        <Tap style={[styles.dialogBtn, styles.dialogCancel, { marginTop: 22, paddingHorizontal: 28, flex: 0 }]} onPress={reopen}>
+          <Text style={styles.dialogCancelText}>{t.exitedReopen}</Text>
+        </Tap>
+      </View>
+    );
+  }
 
   // Ҷаласаи омӯзиш экрани пурра аст (бе менюи поёнӣ)
   if (studying) {
@@ -99,6 +112,8 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  exitedTitle: { fontSize: 22, fontWeight: '800', color: colors.text, letterSpacing: -0.4 },
+  exitedDesc: { fontSize: 15, color: colors.textSecondary, marginTop: 8, textAlign: 'center' },
   overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(19, 37, 28, 0.45)', alignItems: 'center', justifyContent: 'center', padding: 24, zIndex: 100 },
   dialog: { width: '100%', maxWidth: 360, backgroundColor: '#fff', borderRadius: 24, padding: 22, boxShadow: '0px 18px 48px rgba(18, 52, 36, 0.28)' },
   dialogTitle: { fontSize: 19, fontWeight: '800', color: colors.text, letterSpacing: -0.3 },
