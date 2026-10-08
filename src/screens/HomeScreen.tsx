@@ -1,7 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
 import { ReactNode, useState } from 'react';
-import { Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from 'react-native';
+import { Pressable, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from 'react-native';
+import { PullToRefresh } from '../components/PullToRefresh';
 import { Tap } from '../components/Tap';
 import { demo, scenarios, useProgress } from '../data';
 import { Coin } from '../components/Coin';
@@ -305,7 +306,7 @@ export function HomeScreen({ onStudy }: { onStudy?: () => void }) {
   const [query, setQuery] = useState('');
   return (
     <View style={styles.root}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <PullToRefresh style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <Header
           onSearch={() => {
             setSearchOpen((v) => !v);
@@ -327,7 +328,7 @@ export function HomeScreen({ onStudy }: { onStudy?: () => void }) {
           <AchievementCard />
           <PremiumBanner />
         </View>
-      </ScrollView>
+      </PullToRefresh>
     </View>
   );
 }
