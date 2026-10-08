@@ -3,7 +3,8 @@ import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Icon } from '../../components/Icon';
 import { ProgressRing } from '../../components/ProgressRing';
 import { Tap } from '../../components/Tap';
-import { WORDS, Word, answer } from '../../data';
+import { getAllWords } from '../../content';
+import { Word, answer } from '../../data';
 import { GAMES_KEY, clearSession, getSession, setSession } from '../../session';
 import { t } from '../../strings';
 import { colors, glass, softShadow } from '../../theme';
@@ -58,7 +59,7 @@ function scrambleLetters(ru: string): string[] {
 const shuffle = <T,>(a: T[]) => [...a].sort(() => Math.random() - 0.5);
 const norm = (s: string) => s.trim().toLowerCase().replace(/ё/g, 'е');
 
-function makeQuestion(words: Word[], stage: Record<number, number>, lastSeen: Record<number, number>, lastId: number | null): Question | null {
+function makeQuestion(words: Word[], stage: Record<string, number>, lastSeen: Record<string, number>, lastId: string | null): Question | null {
   const open = words.filter((w) => stage[w.id] < MASTERED);
   if (open.length === 0) return null;
   let pool = open.length > 1 ? open.filter((w) => w.id !== lastId) : open;
@@ -73,7 +74,7 @@ function makeQuestion(words: Word[], stage: Record<number, number>, lastSeen: Re
     const others = shuffle(words.filter((w) => w.id !== word.id)).sort((a, b) => Number(stage[b.id] === 3) - Number(stage[a.id] === 3));
     let pairs = [word, ...others].slice(0, MATCH_PAIRS);
     if (pairs.length < 3) {
-      const extra = shuffle(WORDS.filter((x) => !pairs.some((p) => p.id === x.id))).slice(0, 3 - pairs.length);
+      const extra = shuffle(getAllWords().filter((x) => !pairs.some((p) => p.id === x.id))).slice(0, 3 - pairs.length);
       pairs = [...pairs, ...extra];
     }
     return { word, type, options: [], pairs };
@@ -82,7 +83,10 @@ function makeQuestion(words: Word[], stage: Record<number, number>, lastSeen: Re
   let options: string[] = [];
   if (type === 'pickTj' || type === 'pickRu' || type === 'cloze') {
     const key = type === 'pickTj' ? 'tj' : 'ru';
-    const wrong = shuffle(WORDS.filter((x) => x.id !== word.id && x[key] !== word[key]).map((x) => x[key])).slice(0, 3);
+    // Хатоҳо аввал аз ҳамон категория, баъд аз дигарон
+    const others = getAllWords().filter((x) => x.id !== word.id && x[key] !== word[key]);
+    const pool = [...shuffle(others.filter((x) => x.categoryId === word.categoryId)), ...shuffle(others.filter((x) => x.categoryId !== word.categoryId))];
+    const wrong = [...new Set(pool.map((x) => x[key]))].slice(0, 3);
     options = shuffle([word[key], ...wrong]);
   }
   return { word, type, options, sentence: sentence ?? undefined };
@@ -102,12 +106,12 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
   // Пас аз навсозии саҳифа зинаҳо ва хатогиҳои ҳамин раунд барқарор мешаванд.
   const roundKey = words.map((w) => w.id).join('-');
   const [init] = useState(() => {
-    const sv = getSession<{ key: string; stage: Record<number, number>; mistakes: number }>(GAMES_KEY);
+    const sv = getSession<{ key: string; stage: Record<string, number>; mistakes: number }>(GAMES_KEY);
     return sv && sv.key === roundKey && words.every((w) => typeof sv.stage[w.id] === 'number') ? sv : null;
   });
-  const [stage, setStage] = useState<Record<number, number>>(() => init?.stage ?? Object.fromEntries(words.map((w) => [w.id, 0])));
-  const lastSeen = useRef<Record<number, number>>({});
-  const lastId = useRef<number | null>(null);
+  const [stage, setStage] = useState<Record<string, number>>(() => init?.stage ?? Object.fromEntries(words.map((w) => [w.id, 0])));
+  const lastSeen = useRef<Record<string, number>>({});
+  const lastId = useRef<string | null>(null);
   const tick = useRef(0);
   const [mistakes, setMistakes] = useState(init?.mistakes ?? 0);
   useEffect(() => {
@@ -137,9 +141,9 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
   }, [result]);
 
   const finishMatch = useCallback(
-    (wrongIds: number[]) => {
+    (wrongIds: string[]) => {
       if (!q?.pairs) return;
-      const upd: Record<number, number> = {};
+      const upd: Record<string, number> = {};
       for (const w of q.pairs) {
         if (stage[w.id] !== TYPES.indexOf('match')) continue; // танҳо калимаҳои дар ин зина буда пеш меравад
         upd[w.id] = wrongIds.includes(w.id) ? Math.max(0, stage[w.id] - 1) : stage[w.id] + 1;
@@ -204,7 +208,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
   return (
     <View style={{ flex: 1 }}>
       <StudyHeader onClose={onClose} progress={mastered / words.length} label={`${t.masteredLabel} ${mastered}/${words.length}`} />
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 200 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 150 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={[g.card, softShadow, glass]}>
           <View style={g.cardTop}>
             <View style={c.chip}>
@@ -212,9 +216,9 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
             </View>
             <View style={{ flex: 1 }} />
             {/* Прогреси худи ҳамин калима (зинаҳо: 0 → 3) */}
-            <ProgressRing size={46} stroke={5} progress={stage[q.word.id] / MASTERED} color={colors.green} trackColor={colors.track}>
+            <ProgressRing size={38} stroke={4} progress={stage[q.word.id] / MASTERED} color={colors.green} trackColor={colors.track}>
               {stage[q.word.id] >= MASTERED ? (
-                <Icon name="check" size={18} color={colors.green} strokeWidth={3} />
+                <Icon name="check" size={15} color={colors.green} strokeWidth={3} />
               ) : (
                 <Text style={g.ringText}>
                   {stage[q.word.id]}/{MASTERED}
@@ -230,7 +234,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
             <Text style={g.prompt}>{q.type === 'cloze' ? q.sentence : prompt}</Text>
             {showSpeaker ? (
               <Tap style={g.speak} onPress={() => speak(q.word.ru)}>
-                <Icon name="volume" size={18} color={colors.green} />
+                <Icon name="volume" size={16} color={colors.green} />
               </Tap>
             ) : null}
           </View>
@@ -238,7 +242,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
           {q.type === 'cloze' ? <Text style={g.hint}>{q.word.exTj}</Text> : null}
 
           {q.type === 'match' ? null : q.type === 'scramble' ? (
-            <View style={{ marginTop: 18, gap: 14 }}>
+            <View style={{ marginTop: 12, gap: 12 }}>
               <View style={[g.slots, result === 'right' && g.optionRight, result === 'wrong' && g.optionWrong]}>
                 {built.map((i, pos) => (
                   <Tap key={pos} style={g.tile} onPress={() => result === 'idle' && setBuilt((b) => b.filter((_, k) => k !== pos))}>
@@ -259,7 +263,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
               </View>
             </View>
           ) : q.type === 'type' ? (
-            <View style={{ marginTop: 18 }}>
+            <View style={{ marginTop: 12 }}>
               <TextInput
                 value={typed}
                 onChangeText={setTyped}
@@ -274,7 +278,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
               />
             </View>
           ) : (
-            <View style={{ marginTop: 18, gap: 10 }}>
+            <View style={{ marginTop: 12, gap: 8 }}>
               {q.options.map((opt) => (
                 <Tap key={opt} style={optionStyle(opt)} onPress={() => submit(opt)}>
                   <Text style={g.optionText}>{opt}</Text>
@@ -323,26 +327,26 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
 
 const g = StyleSheet.create({
   cardTop: { flexDirection: 'row', alignItems: 'center' },
-  ringText: { fontSize: 11, fontWeight: '800', color: colors.text },
-  card: { borderRadius: 28, padding: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: 'rgba(255,255,255,0.7)' },
-  promptRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16 },
-  prompt: { flex: 1, fontSize: 36, fontWeight: '800', color: colors.text, letterSpacing: -0.8 },
-  hint: { marginTop: 8, fontSize: 15, color: colors.textSecondary, fontStyle: 'italic' },
+  ringText: { fontSize: 10, fontWeight: '800', color: colors.text },
+  card: { borderRadius: 22, padding: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: 'rgba(255,255,255,0.7)' },
+  promptRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
+  prompt: { flex: 1, fontSize: 26, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
+  hint: { marginTop: 6, fontSize: 14, color: colors.textSecondary, fontStyle: 'italic' },
   slots: {
-    minHeight: 64,
+    minHeight: 56,
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
     padding: 8,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: colors.greenLine,
     backgroundColor: 'rgba(255,255,255,0.6)',
   },
   pool: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   tile: {
-    minWidth: 46,
-    height: 48,
+    minWidth: 42,
+    height: 44,
     paddingHorizontal: 10,
     borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.95)',
@@ -351,12 +355,12 @@ const g = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tileText: { fontSize: 22, fontWeight: '700', color: colors.text },
-  speak: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.greenSoft, alignItems: 'center', justifyContent: 'center' },
+  tileText: { fontSize: 20, fontWeight: '700', color: colors.text },
+  speak: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.greenSoft, alignItems: 'center', justifyContent: 'center' },
   option: {
-    minHeight: 52,
-    paddingHorizontal: 16,
-    borderRadius: 16,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.9)',
     borderWidth: 1.5,
     borderColor: colors.hairline,
@@ -364,7 +368,7 @@ const g = StyleSheet.create({
   },
   optionRight: { backgroundColor: '#DCF3E5', borderColor: colors.green },
   optionWrong: { backgroundColor: '#FBE0DD', borderColor: '#D8483B' },
-  optionText: { fontSize: 18, fontWeight: '600', color: colors.text },
+  optionText: { fontSize: 15, fontWeight: '600', color: colors.text },
   input: {
     height: 46,
     paddingHorizontal: 14,
@@ -372,14 +376,14 @@ const g = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.9)',
     borderWidth: 1.5,
     borderColor: colors.greenLine,
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 17,
+    fontWeight: '600',
     color: colors.text,
     ...({ outlineStyle: 'none' } as object),
   },
-  feedback: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, padding: 14, borderRadius: 16, borderWidth: 1 },
+  feedback: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1 },
   feedbackRight: { backgroundColor: '#DCF3E5', borderColor: '#A9DDBF' },
   feedbackWrong: { backgroundColor: '#FBE0DD', borderColor: '#F0B3AC' },
-  feedbackTitle: { fontSize: 16, fontWeight: '800' },
-  feedbackSub: { fontSize: 14, color: colors.text, marginTop: 2, fontWeight: '600' },
+  feedbackTitle: { fontSize: 14, fontWeight: '800' },
+  feedbackSub: { fontSize: 13, color: colors.text, marginTop: 1, fontWeight: '600' },
 });

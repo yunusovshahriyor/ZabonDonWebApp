@@ -9,17 +9,17 @@ const shuffle = <T,>(a: T[]) => [...a].sort(() => Math.random() - 0.5);
 // Ранги ҷуфтҳои интихобшуда (то корбар бинад кадом калима бо кадом пайваст аст).
 const LINK_COLORS = ['#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899', '#14B8A6'];
 
-type Sel = { side: 'ru' | 'tj'; id: number } | null;
+type Sel = { side: 'ru' | 'tj'; id: string } | null;
 
 /**
  * Ҷуфтёбӣ: калимаи русӣ ↔ тарҷумаи тоҷикӣ.
  * Ҷуфтҳо бе санҷиши фаврӣ гузошта мешаванд (пахши такрорӣ ҷуфтро бекор мекунад).
  * Вақте ҳамаи калимаҳо пайваст шуданд, дурустӣ як бор санҷида мешавад ва onFinish(калимаҳои хатогидошта) даъват мешавад.
  */
-export function MatchBoard({ pairs, onFinish }: { pairs: Word[]; onFinish: (wrongIds: number[]) => void }) {
+export function MatchBoard({ pairs, onFinish }: { pairs: Word[]; onFinish: (wrongIds: string[]) => void }) {
   const left = useMemo(() => shuffle(pairs), [pairs]);
   const right = useMemo(() => shuffle(pairs), [pairs]);
-  const [links, setLinks] = useState<Record<number, number>>({}); // id-и русӣ → id-и тоҷикӣ
+  const [links, setLinks] = useState<Record<string, string>>({}); // id-и русӣ → id-и тоҷикӣ
   const [sel, setSel] = useState<Sel>(null);
   const [finished, setFinished] = useState(false);
   const done = useRef(false);
@@ -28,20 +28,20 @@ export function MatchBoard({ pairs, onFinish }: { pairs: Word[]; onFinish: (wron
     if (Object.keys(links).length !== pairs.length || done.current) return;
     done.current = true;
     setFinished(true);
-    const wrong = new Set<number>();
+    const wrong = new Set<string>();
     for (const [ru, tj] of Object.entries(links)) {
-      if (Number(ru) !== tj) wrong.add(Number(ru)).add(tj);
+      if (ru !== tj) wrong.add(ru).add(tj);
     }
     onFinish([...wrong]);
   }, [links, pairs.length, onFinish]);
 
-  const press = (side: 'ru' | 'tj', id: number) => {
+  const press = (side: 'ru' | 'tj', id: string) => {
     if (finished) return;
     const linkedTj = side === 'ru' ? links[id] : undefined;
-    const linkedRu = side === 'tj' ? Number(Object.keys(links).find((k) => links[Number(k)] === id)) : undefined;
+    const linkedRu = side === 'tj' ? Object.keys(links).find((k) => links[k] === id) : undefined;
     // Пахши калимаи аллакай пайвастшуда — пайвастро бекор мекунад.
-    if (linkedTj !== undefined || (linkedRu !== undefined && !Number.isNaN(linkedRu))) {
-      const ruId = side === 'ru' ? id : (linkedRu as number);
+    if (linkedTj !== undefined || linkedRu !== undefined) {
+      const ruId = side === 'ru' ? id : (linkedRu as string);
       setLinks((l) => {
         const { [ruId]: _, ...rest } = l;
         return rest;
@@ -60,14 +60,14 @@ export function MatchBoard({ pairs, onFinish }: { pairs: Word[]; onFinish: (wron
   };
 
   const ruIds = pairs.map((p) => p.id);
-  const colorOf = (ruId: number) => LINK_COLORS[ruIds.indexOf(ruId) % LINK_COLORS.length];
+  const colorOf = (ruId: string) => LINK_COLORS[ruIds.indexOf(ruId) % LINK_COLORS.length];
 
-  const style = (side: 'ru' | 'tj', id: number) => {
-    const ruId = side === 'ru' ? id : Number(Object.keys(links).find((k) => links[Number(k)] === id));
-    const linked = side === 'ru' ? id in links : !Number.isNaN(ruId);
+  const style = (side: 'ru' | 'tj', id: string) => {
+    const ruId = side === 'ru' ? id : Object.keys(links).find((k) => links[k] === id);
+    const linked = side === 'ru' ? id in links : ruId !== undefined;
     if (linked) {
-      if (finished) return [m.item, links[ruId] === ruId ? m.right : m.wrong];
-      const c = colorOf(ruId);
+      if (finished) return [m.item, links[ruId as string] === ruId ? m.right : m.wrong];
+      const c = colorOf(ruId as string);
       return [m.item, { borderColor: c, backgroundColor: `${c}22` }];
     }
     if (sel && sel.side === side && sel.id === id) return [m.item, m.selected];

@@ -1,14 +1,14 @@
+import { useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../../components/Icon';
 import { Tap } from '../../components/Tap';
-import { WordArt, ART_BG } from '../../components/WordArt';
 import type { Word } from '../../data';
 import { t } from '../../strings';
 import { colors } from '../../theme';
 import { StudyHeader, c, speak } from './common';
 
 export const QUEUE_SIZE = 5;
-const IMAGE_H = 128;
+const IMAGE_H = 150;
 
 type Props = {
   word: Word;
@@ -19,6 +19,15 @@ type Props = {
   onRepeat: () => void;
   onClose: () => void;
 };
+
+/** Акси калима (аз база); агар набошад ё бор нашавад — ҳарфи аввал. */
+function Cover({ image, letter }: { image?: string; letter: string }) {
+  const [failed, setFailed] = useState(false);
+  if (image && !failed) {
+    return <Image source={{ uri: image }} style={s.photo} resizeMode="contain" onError={() => setFailed(true)} />;
+  }
+  return <Text style={s.letter}>{letter.charAt(0).toUpperCase()}</Text>;
+}
 
 /** Корти шиносӣ: расм (боло) + калима, транскрипсия ва тарҷума (поён, дар марказ); поён: "Медонам" / "Такрор". */
 export function Intro({ word: w, pos, total, queue, onKnow, onRepeat, onClose }: Props) {
@@ -44,8 +53,8 @@ export function Intro({ word: w, pos, total, queue, onKnow, onRepeat, onClose }:
         <View style={{ flex: 1, justifyContent: 'center', paddingBottom: 30 }}>
         <View key={w.id} style={s.card}>
           {/* Расм */}
-          <View style={[s.imageBox, { backgroundColor: ART_BG[w.id] ?? '#F3F6FB' }]}>
-            {w.image ? <Image source={{ uri: w.image }} style={s.photo} resizeMode="cover" /> : <WordArt id={w.id} height={IMAGE_H - 10} />}
+          <View style={[s.imageBox, { backgroundColor: w.image ? '#fff' : colors.greenSoft }]}>
+            <Cover image={w.image} letter={w.ru} />
             <Tap style={s.speak} onPress={() => speak(w.ru)}>
               <Icon name="volume" size={22} color={colors.green} strokeWidth={2} />
             </Tap>
@@ -58,17 +67,19 @@ export function Intro({ word: w, pos, total, queue, onKnow, onRepeat, onClose }:
               <Text style={s.tj}>{w.tj}</Text>
             </View>
 
-            {/* Ҷумлаи намунавӣ */}
-            <View style={s.example}>
-              <View style={s.exBar} />
-              <View style={{ flex: 1 }}>
-                <Text style={s.exRu}>{w.exRu}</Text>
-                <Text style={s.exTj}>{w.exTj}</Text>
+            {/* Ҷумлаи намунавӣ (агар дар база бошад) */}
+            {w.exRu ? (
+              <View style={s.example}>
+                <View style={s.exBar} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.exRu}>{w.exRu}</Text>
+                  {w.exTj ? <Text style={s.exTj}>{w.exTj}</Text> : null}
+                </View>
+                <Tap style={s.exSpeak} onPress={() => speak(w.exRu)}>
+                  <Icon name="volume" size={16} color={colors.green} />
+                </Tap>
               </View>
-              <Tap style={s.exSpeak} onPress={() => speak(w.exRu)}>
-                <Icon name="volume" size={16} color={colors.green} />
-              </Tap>
-            </View>
+            ) : null}
           </View>
         </View>
         </View>
@@ -98,6 +109,7 @@ const s = StyleSheet.create({
 
   card: { borderRadius: 24, backgroundColor: '#fff', overflow: 'hidden', boxShadow: '0px 14px 34px rgba(20, 60, 40, 0.14)' },
   imageBox: { height: IMAGE_H, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  letter: { fontSize: 64, fontWeight: '800', color: colors.green },
   photo: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' },
   speak: {
     position: 'absolute',
