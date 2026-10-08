@@ -6,7 +6,7 @@ import { BottomNav } from './src/components/BottomNav';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { StudyScreen } from './src/screens/StudyScreen';
-import { setupPwa } from './src/pwa';
+import { isStandalone, setupPwa } from './src/pwa';
 import { GAMES_KEY, STUDY_KEY, clearSession } from './src/session';
 import { useNav } from './src/useNav';
 import { t } from './src/strings';
@@ -40,18 +40,22 @@ function Soon() {
 }
 
 function ExitDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
+  // Дар PWA барнома аз кодӣ баста намешавад: "Назад"-и системавӣ (дафъаи дуюм) мебарорад.
+  const standalone = isStandalone();
   return (
     <View style={styles.overlay}>
       <View style={styles.dialog}>
         <Text style={styles.dialogTitle}>{t.exitTitle}</Text>
-        <Text style={styles.dialogDesc}>{t.exitDesc}</Text>
+        <Text style={styles.dialogDesc}>{standalone ? t.exitHintStandalone : t.exitDesc}</Text>
         <View style={styles.dialogRow}>
           <Tap style={[styles.dialogBtn, styles.dialogCancel]} onPress={onCancel}>
             <Text style={styles.dialogCancelText}>{t.exitCancel}</Text>
           </Tap>
-          <Tap style={[styles.dialogBtn, styles.dialogConfirm]} onPress={onConfirm}>
-            <Text style={styles.dialogConfirmText}>{t.exitConfirm}</Text>
-          </Tap>
+          {standalone ? null : (
+            <Tap style={[styles.dialogBtn, styles.dialogConfirm]} onPress={onConfirm}>
+              <Text style={styles.dialogConfirmText}>{t.exitConfirm}</Text>
+            </Tap>
+          )}
         </View>
       </View>
     </View>

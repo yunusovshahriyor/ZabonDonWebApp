@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import type { TabKey } from './components/BottomNav';
+import { isStandalone } from './pwa';
 
 export type Nav = { tab: TabKey; studying: boolean };
 
@@ -102,11 +103,13 @@ export function useNav() {
   }, []);
 
   /**
-   * Баромад: (1) "Назад" ба саҳифаи пеш; (2) window.close() (дар PWA-и насбшуда кор мекунад);
+   * Баромад (таби браузер): (1) "Назад" ба саҳифаи пеш; (2) window.close();
    * (3) агар ҳеҷ кадом кор накард (таби браузер бе таърих) — экрани «Барнома баста шуд».
    */
   const confirmExit = useCallback(() => {
-    if (!isWeb) return;
+    // PWA: браузер ба сайт бастани барномаро намедиҳад (window.close() танҳо бо таърихи як вуруд кор мекунад).
+    // Дар ин ҳолат баромад — "Назад"-и системавӣ аз вуруди аввал; диалог инро ба корбар мегӯяд.
+    if (!isWeb || isStandalone()) return;
     let left = false;
     const mark = () => {
       left = true;
