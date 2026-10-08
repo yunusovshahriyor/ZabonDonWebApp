@@ -57,7 +57,7 @@ function CategoryCard({ category, onOpen }: { category: Category; onOpen: (id: s
 }
 
 /** Менюи "Луғатҳо": категорияҳо аз Firestore, гурӯҳбандӣ аз рӯи сатҳ, ҷустуҷӯ дар категорияҳо ва калимаҳо. */
-export function DictionariesScreen({ onOpen }: { onOpen: (categoryId: string) => void }) {
+export function DictionariesScreen({ onOpen, onBack }: { onOpen: (categoryId: string) => void; onBack?: () => void }) {
   useProgress();
   const { status, categories } = useContent();
   const [query, setQuery] = useState('');
@@ -85,6 +85,11 @@ export function DictionariesScreen({ onOpen }: { onOpen: (categoryId: string) =>
   return (
     <View style={{ flex: 1 }}>
       <View style={s.head}>
+        {onBack ? (
+          <Tap style={s.back} onPress={onBack}>
+            <Icon name="back" size={22} color={colors.text} strokeWidth={2.2} />
+          </Tap>
+        ) : null}
         <Text style={s.title}>{t.catalog}</Text>
         <View style={s.countChip}>
           <Text style={s.countText}>{categories.length}</Text>
@@ -164,6 +169,7 @@ export function DictionariesScreen({ onOpen }: { onOpen: (categoryId: string) =>
 
 const s = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 18 },
+  back: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.85)', borderWidth: 1, borderColor: colors.hairline, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 24, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
   countChip: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.greenSoft },
   countText: { fontSize: 13, fontWeight: '800', color: colors.green },

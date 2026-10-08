@@ -59,7 +59,7 @@ const toastMotion = { transition: 'opacity 220ms ease, transform 220ms ease' } a
 // Дар телефон экрани пурра; дар компютер — сутуни марказии 480px.
 export default function App() {
   useGlobalStyles();
-  const { tab, studying, studyCategory, category, toast, goTab, openStudy, closeStudy, openCategory, closeCategory } = useNav();
+  const { tab, studying, studyCategory, category, catalog, toast, goTab, openStudy, closeStudy, openCatalog, closeCatalog, openCategory, closeCategory } = useNav();
 
 
   // Ҷаласаи омӯзиш экрани пурра аст (бе менюи поёнӣ)
@@ -82,29 +82,31 @@ export default function App() {
   return (
     <View style={styles.outer}>
       <View style={styles.page}>
-        {tab === 'home' && (
-          <HomeScreen
-            onStudy={() => {
-              clearSession(STUDY_KEY, GAMES_KEY); // ҷаласаи нав
-              openStudy();
-            }}
-          />
-        )}
-        {tab === 'dict' &&
-          (category ? (
-            <CategoryScreen
-              categoryId={category}
-              onBack={closeCategory}
-              onStudy={(id) => {
-                clearSession(STUDY_KEY, GAMES_KEY);
-                openStudy(id);
-              }}
-            />
+        {tab === 'home' &&
+          (catalog ? (
+            category ? (
+              <CategoryScreen
+                categoryId={category}
+                onBack={closeCategory}
+                onStudy={(id) => {
+                  clearSession(STUDY_KEY, GAMES_KEY);
+                  openStudy(id);
+                }}
+              />
+            ) : (
+              <DictionariesScreen onOpen={openCategory} onBack={closeCatalog} />
+            )
           ) : (
-            <DictionariesScreen onOpen={openCategory} />
+            <HomeScreen
+              onStudy={() => {
+                clearSession(STUDY_KEY, GAMES_KEY); // ҷаласаи нав
+                openStudy();
+              }}
+              onCatalog={openCatalog}
+            />
           ))}
         {tab === 'profile' && <ProfileScreen />}
-        {tab !== 'home' && tab !== 'dict' && tab !== 'profile' && <Soon />}
+        {tab !== 'home' && tab !== 'profile' && <Soon />}
       </View>
       <BottomNav active={tab} onChange={goTab} />
       <StatusBar style="dark" />

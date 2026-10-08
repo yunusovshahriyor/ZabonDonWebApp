@@ -185,9 +185,9 @@ function PrimaryButton({ label, icon, onPress }: { label: string; icon: IconName
   );
 }
 
-function CatalogHint() {
+function CatalogHint({ onPress }: { onPress?: () => void }) {
   return (
-    <Tap>
+    <Tap onPress={onPress}>
       <Card style={styles.hintRow}>
         <IconCircle name="bulb" size={36} />
         <Text style={styles.hintText}>{t.catalogHint}</Text>
@@ -300,7 +300,7 @@ function PremiumBanner() {
   );
 }
 
-export function HomeScreen({ onStudy }: { onStudy?: () => void }) {
+export function HomeScreen({ onStudy, onCatalog }: { onStudy?: () => void; onCatalog?: () => void }) {
   useProgress(); // аз нав кашидан ҳангоми тағйири пешравӣ
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -317,7 +317,7 @@ export function HomeScreen({ onStudy }: { onStudy?: () => void }) {
         <GoalCard />
         <View style={{ paddingHorizontal: PAD, marginTop: GAP, gap: GAP }}>
           <PrimaryButton label={t.learnCta} icon="arrow" onPress={onStudy} />
-          <CatalogHint />
+          <CatalogHint onPress={onCatalog} />
           <AiLearnCard />
           <Text style={[styles.sectionTitle, { marginTop: 8, paddingHorizontal: 4 }]}>{t.trainings}</Text>
           <View style={{ flexDirection: 'row', gap: GAP }}>

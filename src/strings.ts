@@ -12,7 +12,7 @@ export const t = {
   premiumLockedSub: 'Бо Premium ҳамаи категорияҳо кушода мешаванд',
   notFound: 'Чизе ёфт нашуд',
   searchWords: 'Ҷустуҷӯи калима ё категория…',
-  catalog: 'Луғатҳо',
+  catalog: 'Каталог',
   noWords: 'Дар ин категория калима нест',
   statusKnown: 'Омӯхта шуд',
   statusRepeat: 'Дар омӯзиш',
