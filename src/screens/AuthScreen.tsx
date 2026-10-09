@@ -85,7 +85,7 @@ export function AuthScreen({ mode, onMode, onClose, onDone }: Props) {
         {!reset ? (
           <View style={s.segment}>
             {(['signin', 'signup'] as AuthMode[]).map((m) => (
-              <Tap key={m} style={[s.segBtn, mode === m && s.segOn]} onPress={() => mode !== m && switchMode(m)}>
+              <Tap key={m} style={[s.segBtn, mode === m && s.segOn]} pressedStyle={mode === m ? undefined : s.segPressed} onPress={() => mode !== m && switchMode(m)}>
                 <Text style={[s.segText, mode === m && s.segTextOn]}>{m === 'signin' ? t.signIn : t.signUp}</Text>
               </Tap>
             ))}
@@ -237,6 +237,7 @@ const s = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 60 },
   segment: { flexDirection: 'row', padding: 4, borderRadius: 999, backgroundColor: 'rgba(19, 37, 28, 0.06)', marginBottom: 14 },
   segBtn: { flex: 1, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  segPressed: { backgroundColor: 'rgba(30, 127, 85, 0.14)' },
   segOn: { backgroundColor: '#fff', boxShadow: '0px 2px 8px rgba(18, 52, 36, 0.12)' },
   segText: { fontSize: 15, fontWeight: '600', color: colors.textSecondary },
   segTextOn: { color: colors.green, fontWeight: '800' },
