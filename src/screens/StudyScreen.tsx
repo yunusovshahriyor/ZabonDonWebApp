@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../components/Icon';
+import { StreakDialog } from '../components/StreakDialog';
 import { Tap } from '../components/Tap';
 import { WordThumb } from '../components/WordThumb';
 import { getAllWords, retryLoadContent, useContent } from '../content';
-import { COINS_PER_WORD, Word, answer, demo, getSessionWords, markKnown, resetProgress, useProgress } from '../data';
+import { COINS_PER_WORD, Word, answer, demo, getSessionWords, markKnown, resetProgress, takeStreakCelebration, useProgress } from '../data';
 import { STUDY_KEY, getSession, setSession } from '../session';
 import { t } from '../strings';
 import { colors, glass, softShadow } from '../theme';
@@ -39,7 +40,18 @@ function readSaved(): { deck: Word[]; pos: number; queue: Word[]; gameWords: Wor
   return { deck, pos: sv.pos, queue, gameWords, phase: sv.phase, stats: sv.stats };
 }
 
+/** Ҷаласаи омӯзиш + табрики рӯзи фаъол (пас аз анҷоми бозӣ, агар рӯзи нави фаъол сабт шуда бошад). */
 export function StudyScreen({ onClose, categoryId }: { onClose: () => void; categoryId?: string }) {
+  const [streakOpen, setStreakOpen] = useState(false);
+  return (
+    <>
+      <StudyFlow onClose={onClose} categoryId={categoryId} onRoundEnd={() => takeStreakCelebration() && setStreakOpen(true)} />
+      {streakOpen ? <StreakDialog onClose={() => setStreakOpen(false)} /> : null}
+    </>
+  );
+}
+
+function StudyFlow({ onClose, categoryId, onRoundEnd }: { onClose: () => void; categoryId?: string; onRoundEnd: () => void }) {
   useProgress();
   const { status } = useContent();
   const [init] = useState(readSaved);
@@ -60,6 +72,12 @@ export function StudyScreen({ onClose, categoryId }: { onClose: () => void; cate
       stats,
     } satisfies Saved);
   }, [deck, pos, queue, gameWords, phase, stats]);
+
+  // Анҷоми давраи бозӣ / ҷаласа: агар имрӯз аввалин рӯзи фаъоли нав сабт шуда бошад — табрик
+  useEffect(() => {
+    if (phase === 'roundDone' || phase === 'finish') onRoundEnd();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   // Агар мундариҷа ҳанӯз бор нашуда буд ва ҳозир омад — тахтаро месозем
   useEffect(() => {

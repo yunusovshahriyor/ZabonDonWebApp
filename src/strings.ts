@@ -1,6 +1,10 @@
 // Матнҳо аз values/strings.xml (тоҷикӣ)
 export const t = {
   appName: 'ZabonDon',
+  streakTitle: (n: number) => `${n} рӯзи фаъол`,
+  streakDesc: (n: number) => `Офарин! Шумо ${n} рӯз фаъолияти бардавом доред — фардо низ омӯзед, то ба ҳадафи худ наздиктар шавед!`,
+  streakGreat: 'Аъло!',
+  streakBest: (n: number) => `Беҳтарин: ${n} рӯз`,
   loading: 'Бор шуда истодааст…',
   loadError: 'Пайвастшавӣ ба база ғалат шуд',
   retry: 'Аз нав кӯшиш кунед',

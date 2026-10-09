@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { getAllWords, getCategories, getWordsByCategory, onContentChange, type Word } from './content';
+import { bestStreak, currentStreak, recordActivity, resetStreak, totalActiveDays } from './streak';
 import { t } from './strings';
 import type { IconName } from './components/Icon';
 
@@ -14,12 +15,15 @@ export const GOAL_MAX = 50;
 // ---------- Ҳолати пешравӣ (мағозаи оддӣ + localStorage) ----------
 const fmt = (n: number) => n.toLocaleString('ru-RU').replace(/ | /g, ' ');
 
-const BASE = { streak: 3, coinsNum: 1240, daily: 0, goal: 5 };
+const BASE = { coinsNum: 1240, daily: 0, goal: 5 };
 
 // Объекти зинда: компонентҳо онро мехонанд, пас аз тағйир useProgress() онҳоро аз нав мекашад.
 // total/repeat/learned аз ҳолати калимаҳои воқеии база ҳисоб мешаванд (recount).
 export const demo = {
-  streak: BASE.streak,
+  // Рӯзҳои фаъол: ҳисоб ва нигоҳдорӣ дар streak.ts (мантиқи Android); ин ҷо танҳо нусхаи зинда барои UI.
+  streak: 0,
+  bestStreak: 0,
+  activeDays: 0,
   coinsNum: BASE.coinsNum,
   coins: fmt(BASE.coinsNum),
   daily: BASE.daily,
@@ -37,8 +41,8 @@ const KEY = 'zabondon_progress_v2';
 
 function save() {
   try {
-    const { streak, coinsNum, daily, goal } = demo;
-    localStorage.setItem(KEY, JSON.stringify({ d: { streak, coinsNum, daily, goal }, statuses }));
+    const { coinsNum, daily, goal } = demo;
+    localStorage.setItem(KEY, JSON.stringify({ d: { coinsNum, daily, goal }, statuses }));
   } catch {
     /* localStorage дастнорас аст */
   }
@@ -57,6 +61,27 @@ function load() {
   }
 }
 
+/** Нусхаи зиндаи рӯзҳои фаъолро аз streak.ts нав мекунад. */
+function syncStreak() {
+  demo.streak = currentStreak();
+  demo.bestStreak = bestStreak();
+  demo.activeDays = totalActiveDays();
+}
+
+// Рӯзи нави фаъол сабт шуд — табрик (диалог) пас аз анҷоми бозӣ нишон дода мешавад (мисли ResultActivity дар Android).
+let celebrationPending = false;
+export function takeStreakCelebration(): boolean {
+  const v = celebrationPending;
+  celebrationPending = false;
+  return v;
+}
+
+/** Фаъолияти рӯз: омӯзиши калима ё анҷоми бозӣ. */
+function noteActivity() {
+  if (recordActivity()) celebrationPending = true;
+  syncStreak();
+}
+
 /** Оморро аз рӯи калимаҳои воқеии база ва ҳолати онҳо аз нав ҳисоб мекунад. */
 function recount() {
   const words = getAllWords();
@@ -73,6 +98,7 @@ function recount() {
 }
 
 load();
+syncStreak();
 recount();
 
 function emit() {
@@ -120,6 +146,7 @@ export function getSessionWords(categoryId?: string): Word[] {
 export function markKnown(id: string) {
   if (statusOf(id) === 'known') return;
   statuses[id] = 'known';
+  noteActivity();
   recount();
   save();
   emit();
@@ -134,6 +161,7 @@ export function answer(id: string, known: boolean) {
     demo.daily += 1;
     demo.coinsNum += COINS_PER_WORD;
     demo.coins = fmt(demo.coinsNum);
+    noteActivity();
   } else if (prev === 'new') {
     statuses[id] = 'repeat';
   }
@@ -153,13 +181,15 @@ export function setDailyGoal(n: number) {
 
 export function resetProgress() {
   statuses = {};
+  resetStreak();
+  celebrationPending = false;
   Object.assign(demo, {
-    streak: BASE.streak,
     coinsNum: BASE.coinsNum,
     coins: fmt(BASE.coinsNum),
     daily: BASE.daily,
     goal: BASE.goal,
   });
+  syncStreak();
   recount();
   save();
   emit();

@@ -6,6 +6,7 @@ import { PullToRefresh } from '../components/PullToRefresh';
 import { Tap } from '../components/Tap';
 import { demo, scenarios, setDailyGoal, useProgress } from '../data';
 import { Coin } from '../components/Coin';
+import { StreakDialog } from '../components/StreakDialog';
 import { GoalDialog } from '../components/GoalDialog';
 import { WordThumb } from '../components/WordThumb';
 import { getCategory, getWordsByCategory, useContent } from '../content';
@@ -53,7 +54,7 @@ function RuFlag() {
   );
 }
 
-function Header({ onSearch }: { onSearch: () => void }) {
+function Header({ onSearch, onStreak }: { onSearch: () => void; onStreak: () => void }) {
   return (
     <View style={{ paddingHorizontal: PAD, paddingTop: 16 }}>
       <View style={styles.topRow}>
@@ -73,7 +74,7 @@ function Header({ onSearch }: { onSearch: () => void }) {
         <Tap style={[styles.seg, styles.segActive]}>
           <RuFlag />
         </Tap>
-        <Tap style={styles.seg}>
+        <Tap style={styles.seg} onPress={onStreak}>
           <Icon name="flame" size={18} color="#E2572B" />
           <Text style={styles.segText}>{demo.streak}</Text>
         </Tap>
@@ -408,11 +409,13 @@ export function HomeScreen({ onStudy, onCatalog, onOpenCategory, search = false,
     if (!search) setQuery('');
   }, [search]);
   const [goalOpen, setGoalOpen] = useState(false);
+  const [streakOpen, setStreakOpen] = useState(false); // ҳафтаи рӯзҳои фаъол
   return (
     <View style={styles.root}>
       <PullToRefresh style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <Header
           onSearch={() => (searchOpen ? onCloseSearch?.() : onOpenSearch?.())}
+          onStreak={() => setStreakOpen(true)}
         />
         {searchOpen ? <SearchBar value={query} onChange={setQuery} onClose={() => onCloseSearch?.()} /> : null}
         {searchOpen ? (
@@ -438,6 +441,7 @@ export function HomeScreen({ onStudy, onCatalog, onOpenCategory, search = false,
       </PullToRefresh>
       {/* Диалог берун аз PullToRefresh (transform ва backdrop-filter 'fixed'-ро вайрон мекунанд) */}
       <GoalDialog visible={goalOpen} current={demo.goal} onClose={() => setGoalOpen(false)} onSave={setDailyGoal} />
+      {streakOpen ? <StreakDialog onClose={() => setStreakOpen(false)} /> : null}
     </View>
   );
 }

@@ -127,8 +127,8 @@ function Benefits() {
 /** Пешравии маҳаллӣ (дар ин дастгоҳ): серия, тангаҳо, калимаҳои омӯхташуда. */
 function LocalStats() {
   useProgress();
-  const items: { icon: 'flame' | 'star' | 'check'; value: string; label: string; tint: string; bg: string }[] = [
-    { icon: 'flame', value: String(demo.streak), label: t.statStreak, tint: '#D9622B', bg: '#FCE7D9' },
+  const items: { icon: 'flame' | 'star' | 'check'; value: string; label: string; sub?: string; tint: string; bg: string }[] = [
+    { icon: 'flame', value: String(demo.streak), label: t.statStreak, sub: t.streakBest(demo.bestStreak), tint: '#D9622B', bg: '#FCE7D9' },
     { icon: 'star', value: demo.coins, label: t.statCoins, tint: '#B96A00', bg: '#FBEBCB' },
     { icon: 'check', value: String(demo.learned), label: t.statLearned, tint: colors.green, bg: colors.greenSoft },
   ];
@@ -147,6 +147,11 @@ function LocalStats() {
             <Text style={s.statLabel} numberOfLines={1}>
               {it.label}
             </Text>
+            {it.sub ? (
+              <Text style={[s.statLabel, { marginTop: 1, fontSize: 10 }]} numberOfLines={1}>
+                {it.sub}
+              </Text>
+            ) : null}
           </View>
         ))}
       </View>
