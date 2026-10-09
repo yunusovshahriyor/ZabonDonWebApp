@@ -5,6 +5,7 @@ import { Tap } from '../components/Tap';
 import { WordThumb } from '../components/WordThumb';
 import { Category, getAllWords, getWordsByCategory, retryLoadContent, useContent } from '../content';
 import { statusOf, useProgress } from '../data';
+import { searchContent } from '../search';
 import { t } from '../strings';
 import { colors, glass, softShadow } from '../theme';
 
@@ -73,14 +74,7 @@ export function DictionariesScreen({ onOpen, onBack }: { onOpen: (categoryId: st
     return [...map.entries()].sort((a, b) => a[0] - b[0]);
   }, [categories]);
 
-  const foundCategories = q
-    ? categories.filter((c) => c.titleTg.toLowerCase().includes(q) || c.titleRu.toLowerCase().includes(q))
-    : [];
-  const foundWords = q
-    ? getAllWords()
-        .filter((w) => w.ru.toLowerCase().includes(q) || w.tj.toLowerCase().includes(q))
-        .slice(0, 40)
-    : [];
+  const { categories: foundCategories, words: foundWords } = searchContent(query);
 
   return (
     <View style={{ flex: 1 }}>
