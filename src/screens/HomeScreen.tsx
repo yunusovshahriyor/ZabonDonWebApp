@@ -4,8 +4,9 @@ import { ReactNode, useState } from 'react';
 import { Pressable, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle, useWindowDimensions } from 'react-native';
 import { PullToRefresh } from '../components/PullToRefresh';
 import { Tap } from '../components/Tap';
-import { demo, scenarios, useProgress } from '../data';
+import { demo, scenarios, setDailyGoal, useProgress } from '../data';
 import { Coin } from '../components/Coin';
+import { GoalDialog } from '../components/GoalDialog';
 import { Icon, IconName } from '../components/Icon';
 import { t } from '../strings';
 import { colors, glass, radius, softShadow } from '../theme';
@@ -148,7 +149,7 @@ function StatRow({ icon, tint, bg, value, label, last }: { icon: IconName; tint:
 }
 
 /** Ҳадафи рӯз: ҳалқа + рӯйхати омор дар як корт. */
-function GoalCard() {
+function GoalCard({ onEdit }: { onEdit?: () => void }) {
   const pct = Math.min(100, Math.round((demo.daily / demo.goal) * 100));
   return (
     <Card style={{ marginHorizontal: PAD, marginTop: 16, padding: 16 }}>
@@ -160,7 +161,7 @@ function GoalCard() {
           <Icon name="target" size={13} color={colors.green} />
           <Text style={styles.pctText}>{pct}%</Text>
         </View>
-        <Tap style={[styles.roundBtn, { width: 32, height: 32, borderRadius: 16, marginLeft: 8 }]}>
+        <Tap style={[styles.roundBtn, { width: 32, height: 32, borderRadius: 16, marginLeft: 8 }]} onPress={onEdit} accessibilityLabel={t.goalTitle}>
           <Icon name="edit" size={15} color={colors.text} />
         </Tap>
       </View>
@@ -318,6 +319,7 @@ export function HomeScreen({ onStudy, onCatalog }: { onStudy?: () => void; onCat
   useProgress(); // аз нав кашидан ҳангоми тағйири пешравӣ
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [goalOpen, setGoalOpen] = useState(false);
   return (
     <View style={styles.root}>
       <PullToRefresh style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
@@ -328,7 +330,7 @@ export function HomeScreen({ onStudy, onCatalog }: { onStudy?: () => void; onCat
           }}
         />
         {searchOpen ? <SearchBar value={query} onChange={setQuery} /> : null}
-        <GoalCard />
+        <GoalCard onEdit={() => setGoalOpen(true)} />
         <View style={{ paddingHorizontal: PAD, marginTop: GAP, gap: GAP }}>
           <PrimaryButton label={t.learnCta} icon="arrow" onPress={onStudy} />
           <CatalogHint onPress={onCatalog} />
@@ -343,6 +345,8 @@ export function HomeScreen({ onStudy, onCatalog }: { onStudy?: () => void; onCat
           <PremiumBanner />
         </View>
       </PullToRefresh>
+      {/* Диалог берун аз PullToRefresh (transform ва backdrop-filter 'fixed'-ро вайрон мекунанд) */}
+      <GoalDialog visible={goalOpen} current={demo.goal} onClose={() => setGoalOpen(false)} onSave={setDailyGoal} />
     </View>
   );
 }

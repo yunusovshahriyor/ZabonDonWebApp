@@ -8,6 +8,8 @@ export type WordStatus = 'new' | 'repeat' | 'known';
 
 export const COINS_PER_WORD = 5;
 export const SESSION_SIZE = 10;
+export const GOAL_MIN = 1;
+export const GOAL_MAX = 50;
 
 // ---------- Ҳолати пешравӣ (мағозаи оддӣ + localStorage) ----------
 const fmt = (n: number) => n.toLocaleString('ru-RU').replace(/ | /g, ' ');
@@ -136,6 +138,15 @@ export function answer(id: string, known: boolean) {
     statuses[id] = 'repeat';
   }
   recount();
+  save();
+  emit();
+}
+
+/** Мақсади рӯзона (чанд калима дар як рӯз): дар localStorage нигоҳ дошта мешавад. */
+export function setDailyGoal(n: number) {
+  const v = Math.max(GOAL_MIN, Math.min(GOAL_MAX, Math.round(n) || GOAL_MIN));
+  if (v === demo.goal) return;
+  demo.goal = v;
   save();
   emit();
 }
