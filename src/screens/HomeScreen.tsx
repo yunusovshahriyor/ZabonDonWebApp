@@ -6,6 +6,7 @@ import { PullToRefresh } from '../components/PullToRefresh';
 import { Tap } from '../components/Tap';
 import { demo, scenarios, setDailyGoal, useProgress } from '../data';
 import { Coin } from '../components/Coin';
+import { InfoDialog } from '../components/InfoDialog';
 import { StreakDialog } from '../components/StreakDialog';
 import { GoalDialog } from '../components/GoalDialog';
 import { WordThumb } from '../components/WordThumb';
@@ -54,7 +55,7 @@ function RuFlag() {
   );
 }
 
-function Header({ onSearch, onStreak }: { onSearch: () => void; onStreak: () => void }) {
+function Header({ onSearch, onStreak, onCoins }: { onSearch: () => void; onStreak: () => void; onCoins: () => void }) {
   return (
     <View style={{ paddingHorizontal: PAD, paddingTop: 16 }}>
       <View style={styles.topRow}>
@@ -78,7 +79,7 @@ function Header({ onSearch, onStreak }: { onSearch: () => void; onStreak: () => 
           <Icon name="flame" size={18} color="#E2572B" />
           <Text style={styles.segText}>{demo.streak}</Text>
         </Tap>
-        <Tap style={[styles.seg, { flex: 1.5 }]}>
+        <Tap style={[styles.seg, { flex: 1.5 }]} onPress={onCoins}>
           <Coin size={20} />
           <Text style={styles.segText}>{demo.coins}</Text>
         </Tap>
@@ -410,12 +411,14 @@ export function HomeScreen({ onStudy, onCatalog, onOpenCategory, search = false,
   }, [search]);
   const [goalOpen, setGoalOpen] = useState(false);
   const [streakOpen, setStreakOpen] = useState(false); // ҳафтаи рӯзҳои фаъол
+  const [coinsOpen, setCoinsOpen] = useState(false); // "Танга чист?"
   return (
     <View style={styles.root}>
       <PullToRefresh style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <Header
           onSearch={() => (searchOpen ? onCloseSearch?.() : onOpenSearch?.())}
           onStreak={() => setStreakOpen(true)}
+          onCoins={() => setCoinsOpen(true)}
         />
         {searchOpen ? <SearchBar value={query} onChange={setQuery} onClose={() => onCloseSearch?.()} /> : null}
         {searchOpen ? (
@@ -442,6 +445,7 @@ export function HomeScreen({ onStudy, onCatalog, onOpenCategory, search = false,
       {/* Диалог берун аз PullToRefresh (transform ва backdrop-filter 'fixed'-ро вайрон мекунанд) */}
       <GoalDialog visible={goalOpen} current={demo.goal} onClose={() => setGoalOpen(false)} onSave={setDailyGoal} />
       {streakOpen ? <StreakDialog onClose={() => setStreakOpen(false)} /> : null}
+      {coinsOpen ? <InfoDialog title={t.coinInfoTitle} message={t.coinInfoMessage} onClose={() => setCoinsOpen(false)} /> : null}
     </View>
   );
 }

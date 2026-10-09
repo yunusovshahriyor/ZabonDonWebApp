@@ -4,7 +4,9 @@ import { Icon } from '../../components/Icon';
 import { ProgressRing } from '../../components/ProgressRing';
 import { Tap } from '../../components/Tap';
 import { getAllWords } from '../../content';
-import { Word, answer } from '../../data';
+import { Coin } from '../../components/Coin';
+import { InfoDialog } from '../../components/InfoDialog';
+import { COIN_PENALTY_WRONG, COIN_REWARD_CORRECT, Word, answer, commitSessionCoins, demo, penalizeCoins, useProgress } from '../../data';
 import { GAMES_KEY, clearSession, getSession, setSession } from '../../session';
 import { t } from '../../strings';
 import { colors, glass, softShadow } from '../../theme';
@@ -102,11 +104,12 @@ const PROMPTS: Record<QType, string> = {
 };
 
 /** Бозиҳо: ҳамон 5 калима то ҳар кадом ба зинаи "аз худ шуд" расад. */
-export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mistakes: number) => void; onClose: () => void }) {
+export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mistakes: number, coins: number) => void; onClose: () => void }) {
+  useProgress(); // тангаи умумӣ ҳангоми ҷарима нав мешавад
   // Пас аз навсозии саҳифа зинаҳо ва хатогиҳои ҳамин раунд барқарор мешаванд.
   const roundKey = words.map((w) => w.id).join('-');
   const [init] = useState(() => {
-    const sv = getSession<{ key: string; stage: Record<string, number>; mistakes: number }>(GAMES_KEY);
+    const sv = getSession<{ key: string; stage: Record<string, number>; mistakes: number; earned?: number }>(GAMES_KEY);
     return sv && sv.key === roundKey && words.every((w) => typeof sv.stage[w.id] === 'number') ? sv : null;
   });
   const [stage, setStage] = useState<Record<string, number>>(() => init?.stage ?? Object.fromEntries(words.map((w) => [w.id, 0])));
@@ -114,9 +117,17 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
   const lastId = useRef<string | null>(null);
   const tick = useRef(0);
   const [mistakes, setMistakes] = useState(init?.mistakes ?? 0);
+  // Тангаҳои ҳамин бозӣ ("ҳозира"): +1 барои дуруст, −5 барои нодуруст; ба умумӣ баъди анҷом илова мешавад.
+  const earnedRef = useRef(init?.earned ?? 0);
+  const [earned, setEarnedState] = useState(earnedRef.current);
+  const setEarned = (v: number) => {
+    earnedRef.current = v;
+    setEarnedState(v);
+  };
+  const [rulesOpen, setRulesOpen] = useState(false);
   useEffect(() => {
-    setSession(GAMES_KEY, { key: roundKey, stage, mistakes });
-  }, [roundKey, stage, mistakes]);
+    setSession(GAMES_KEY, { key: roundKey, stage, mistakes, earned });
+  }, [roundKey, stage, mistakes, earned]);
   const [q, setQ] = useState<Question | null>(() => {
     const first = makeQuestion(words, init?.stage ?? Object.fromEntries(words.map((w) => [w.id, 0])), {}, null);
     if (first) {
@@ -149,6 +160,12 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
         upd[w.id] = wrongIds.includes(w.id) ? Math.max(0, stage[w.id] - 1) : stage[w.id] + 1;
       }
       setStage((st) => ({ ...st, ...upd }));
+      // Тангаҳо барои ҳар ҷуфт: дуруст +1, нодуруст −5 (мисли MatchPairsActivity)
+      const wrongN = wrongIds.length;
+      const rightN = Math.max(0, q.pairs.length - wrongN);
+      let e = earnedRef.current + rightN * COIN_REWARD_CORRECT;
+      if (wrongN > 0) e = penalizeCoins(e, wrongN);
+      setEarned(e);
       if (wrongIds.length) setMistakes((n) => n + 1);
       setResult(wrongIds.length ? 'wrong' : 'right');
     },
@@ -166,6 +183,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
     const ok = q.type === 'type' || q.type === 'scramble' ? norm(value) === norm(q.word.ru.replace(/\s+/g, '')) : value === correct;
     setPicked(value);
     setResult(ok ? 'right' : 'wrong');
+    setEarned(ok ? earnedRef.current + COIN_REWARD_CORRECT : penalizeCoins(earnedRef.current, 1));
     const cur = stage[q.word.id];
     const next = ok ? cur + 1 : Math.max(0, cur - 1);
     if (ok && next >= MASTERED) answer(q.word.id, true); // калима "омӯхташуда" мешавад (+ танга)
@@ -177,7 +195,8 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
     const nextStage = stage; // дар submit навсозӣ шудааст
     if (words.every((w) => nextStage[w.id] >= MASTERED)) {
       clearSession(GAMES_KEY);
-      onDone(mistakes);
+      const gained = commitSessionCoins(earnedRef.current); // тангаҳои бозӣ ба умумӣ илова мешаванд
+      onDone(mistakes, gained);
       return;
     }
     tick.current += 1;
@@ -209,6 +228,15 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
     <View style={{ flex: 1 }}>
       <StudyHeader onClose={onClose} progress={mastered / words.length} label={`${t.masteredLabel} ${mastered}/${words.length}`} />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 150 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {/* Тангаҳо: ҳозира / умумӣ (пахш — қоидаҳо) */}
+        <View style={g.coinRow}>
+          <Tap style={g.coinChip} onPress={() => setRulesOpen(true)} accessibilityLabel={t.coinRulesTitle}>
+            <Coin size={16} />
+            <Text style={g.coinText}>
+              {earned} / {demo.coins}
+            </Text>
+          </Tap>
+        </View>
         <View style={[g.card, softShadow, glass]}>
           <View style={g.cardTop}>
             <View style={c.chip}>
@@ -321,12 +349,18 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
           <PrimaryBtn label={t.next} onPress={advance} tone={result === 'right' ? 'green' : 'red'} />
         )}
       </View>
+      {rulesOpen ? (
+        <InfoDialog title={t.coinRulesTitle} message={t.coinRules(COIN_REWARD_CORRECT, COIN_PENALTY_WRONG)} onClose={() => setRulesOpen(false)} />
+      ) : null}
     </View>
   );
 }
 
 const g = StyleSheet.create({
   cardTop: { flexDirection: 'row', alignItems: 'center' },
+  coinRow: { alignItems: 'flex-end', marginBottom: 8 },
+  coinChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.85)', borderWidth: 1, borderColor: colors.hairline },
+  coinText: { fontSize: 13, fontWeight: '800', color: '#5C4A00' },
   ringText: { fontSize: 10, fontWeight: '800', color: colors.text },
   card: { borderRadius: 22, padding: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: 'rgba(255,255,255,0.7)' },
   promptRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },

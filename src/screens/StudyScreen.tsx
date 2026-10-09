@@ -5,7 +5,7 @@ import { StreakDialog } from '../components/StreakDialog';
 import { Tap } from '../components/Tap';
 import { WordThumb } from '../components/WordThumb';
 import { getAllWords, retryLoadContent, useContent } from '../content';
-import { COINS_PER_WORD, Word, answer, demo, getSessionWords, markKnown, resetProgress, takeStreakCelebration, useProgress } from '../data';
+import { Word, answer, demo, getSessionWords, markKnown, resetProgress, takeStreakCelebration, useProgress } from '../data';
 import { STUDY_KEY, getSession, setSession } from '../session';
 import { t } from '../strings';
 import { colors, glass, softShadow } from '../theme';
@@ -22,7 +22,7 @@ type Phase = 'cards' | 'games' | 'roundDone' | 'finish';
  *  • Вақте навбат ба 5 калима расид (ё карт-ҳо тамом шуданд) — бозиҳо бо ҳамон калимаҳо то аз худ шудан.
  *  • Баъд карт-ҳои навбатӣ.
  */
-type Saved = { deck: string[]; pos: number; queue: string[]; gameWords: string[]; phase: Phase; stats: { known: number; mastered: number; mistakes: number } };
+type Saved = { deck: string[]; pos: number; queue: string[]; gameWords: string[]; phase: Phase; stats: { known: number; mastered: number; mistakes: number; coins: number; last: number } };
 const byIds = (ids: string[]) => {
   const all = getAllWords();
   return ids.map((id) => all.find((w) => w.id === id)).filter((w): w is Word => !!w);
@@ -37,7 +37,7 @@ function readSaved(): { deck: Word[]; pos: number; queue: Word[]; gameWords: Wor
   const gameWords = byIds(sv.gameWords);
   if (deck.length !== sv.deck.length || queue.length !== sv.queue.length || gameWords.length !== sv.gameWords.length) return null;
   if (sv.phase === 'games' && gameWords.length === 0) return null;
-  return { deck, pos: sv.pos, queue, gameWords, phase: sv.phase, stats: sv.stats };
+  return { deck, pos: sv.pos, queue, gameWords, phase: sv.phase, stats: { ...sv.stats, coins: sv.stats.coins ?? 0, last: sv.stats.last ?? 0 } };
 }
 
 /** Ҷаласаи омӯзиш + табрики рӯзи фаъол (пас аз анҷоми бозӣ, агар рӯзи нави фаъол сабт шуда бошад). */
@@ -60,7 +60,7 @@ function StudyFlow({ onClose, categoryId, onRoundEnd }: { onClose: () => void; c
   const [queue, setQueue] = useState<Word[]>(init?.queue ?? []);
   const [gameWords, setGameWords] = useState<Word[]>(init?.gameWords ?? []);
   const [phase, setPhase] = useState<Phase>(init?.phase ?? 'cards');
-  const [stats, setStats] = useState(init?.stats ?? { known: 0, mastered: 0, mistakes: 0 });
+  const [stats, setStats] = useState(init?.stats ?? { known: 0, mastered: 0, mistakes: 0, coins: 0, last: 0 });
 
   useEffect(() => {
     setSession(STUDY_KEY, {
@@ -91,7 +91,7 @@ function StudyFlow({ onClose, categoryId, onRoundEnd }: { onClose: () => void; c
     setQueue([]);
     setGameWords([]);
     setPhase('cards');
-    setStats({ known: 0, mastered: 0, mistakes: 0 });
+    setStats({ known: 0, mastered: 0, mistakes: 0, coins: 0, last: 0 });
   };
 
   const decide = (w: Word, isKnown: boolean) => {
@@ -178,8 +178,8 @@ function StudyFlow({ onClose, categoryId, onRoundEnd }: { onClose: () => void; c
         key={gameWords.map((w) => w.id).join('-')}
         words={gameWords}
         onClose={onClose}
-        onDone={(m) => {
-          setStats((x) => ({ ...x, mastered: x.mastered + gameWords.length, mistakes: x.mistakes + m }));
+        onDone={(m, coins) => {
+          setStats((x) => ({ ...x, mastered: x.mastered + gameWords.length, mistakes: x.mistakes + m, coins: x.coins + coins, last: coins }));
           setPhase(pos >= deck.length ? 'finish' : 'roundDone');
         }}
       />
@@ -195,6 +195,7 @@ function StudyFlow({ onClose, categoryId, onRoundEnd }: { onClose: () => void; c
             <Icon name="award" size={36} color={colors.green} strokeWidth={2} />
           </View>
           <Text style={s.title}>{t.roundDone(gameWords.length)}</Text>
+          <Text style={s.roundCoins}>🪙 {t.roundCoins(stats.last)}</Text>
           <View style={s.chips}>
             {gameWords.map((w) => (
               <View key={w.id} style={s.wordChip}>
@@ -219,7 +220,7 @@ function StudyFlow({ onClose, categoryId, onRoundEnd }: { onClose: () => void; c
     { n: stats.mastered, l: t.masteredStat, color: colors.green },
     { n: stats.known, l: t.alreadyKnown, color: '#2F6FD6' },
     { n: stats.mistakes, l: t.mistakes, color: '#B96A00' },
-    { n: `+${stats.mastered * COINS_PER_WORD}`, l: t.finishCoins, color: colors.text },
+    { n: `+${stats.coins}`, l: t.finishCoins, color: colors.text },
   ];
   return (
     <View style={{ flex: 1 }}>
@@ -269,6 +270,7 @@ const s = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   finishWrap: { alignItems: 'center', padding: 24, paddingTop: 36 },
   bigIcon: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.greenSoft, alignItems: 'center', justifyContent: 'center' },
+  roundCoins: { marginTop: 8, fontSize: 16, fontWeight: '800', color: '#B96A00', textAlign: 'center' },
   title: { marginTop: 18, fontSize: 26, fontWeight: '800', color: colors.text, textAlign: 'center' },
   chips: { alignSelf: 'stretch', marginTop: 20, gap: 8 },
   wordChip: {

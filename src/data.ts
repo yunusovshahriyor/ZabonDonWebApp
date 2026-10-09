@@ -7,7 +7,6 @@ import type { IconName } from './components/Icon';
 export type { Word } from './content';
 export type WordStatus = 'new' | 'repeat' | 'known';
 
-export const COINS_PER_WORD = 5;
 export const SESSION_SIZE = 10;
 export const GOAL_MIN = 1;
 export const GOAL_MAX = 50;
@@ -15,7 +14,7 @@ export const GOAL_MAX = 50;
 // ---------- Ҳолати пешравӣ (мағозаи оддӣ + localStorage) ----------
 const fmt = (n: number) => n.toLocaleString('ru-RU').replace(/ | /g, ' ');
 
-const BASE = { coinsNum: 1240, daily: 0, goal: 5 };
+const BASE = { coinsNum: 0, daily: 0, goal: 5 };
 
 // Объекти зинда: компонентҳо онро мехонанд, пас аз тағйир useProgress() онҳоро аз нав мекашад.
 // total/repeat/learned аз ҳолати калимаҳои воқеии база ҳисоб мешаванд (recount).
@@ -59,6 +58,51 @@ function load() {
   } catch {
     /* маълумоти вайрон — аз нав оғоз */
   }
+}
+
+// ---------- Тангаҳо (мантиқи Android: GameCoinRules / RewardCoinsHelper) ----------
+// Дар бозиҳо: ҷавоби дуруст +1, нодуруст −5. Ҷарима аввал аз тангаҳои ҳамин бозӣ ("ҳозира"), баъд аз умумӣ
+// гирифта мешавад (умумӣ аз 0 паст намешавад). Тангаҳои бозӣ ба умумӣ танҳо баъди анҷоми бозӣ илова мешаванд.
+export const COIN_REWARD_CORRECT = 1;
+export const COIN_PENALTY_WRONG = 5;
+
+/** Ҷарима: [тангаҳои нави бозӣ, умумии нав]. Функсияи тоза (мисли GameCoinRules.applyPenalty). */
+export function applyCoinPenalty(earned: number, total: number, times = 1): [number, number] {
+  let remaining = COIN_PENALTY_WRONG * Math.max(1, times);
+  let e = Math.max(0, earned);
+  let tot = Math.max(0, total);
+  if (e >= remaining) return [e - remaining, tot];
+  remaining -= e;
+  e = 0;
+  tot = Math.max(0, tot - remaining);
+  return [e, tot];
+}
+
+function setTotalCoins(n: number) {
+  demo.coinsNum = Math.max(0, Math.round(n));
+  demo.coins = fmt(demo.coinsNum);
+}
+
+/** Ҷавоби нодуруст (times маротиба): аз тангаҳои бозӣ, баъд аз умумӣ гирифта мешавад. Бармегардонад: тангаҳои нави бозӣ. */
+export function penalizeCoins(earned: number, times = 1): number {
+  const [nextEarned, nextTotal] = applyCoinPenalty(earned, demo.coinsNum, times);
+  if (nextTotal !== demo.coinsNum) {
+    setTotalCoins(nextTotal);
+    save();
+    emit();
+  }
+  return nextEarned;
+}
+
+/** Анҷоми бозӣ: тангаҳои бозӣ (агар > 0) ба умумӣ илова мешаванд. Бармегардонад: ҳамон миқдор. */
+export function commitSessionCoins(earned: number): number {
+  const gain = Math.max(0, earned);
+  if (gain > 0) {
+    setTotalCoins(demo.coinsNum + gain);
+    save();
+    emit();
+  }
+  return gain;
 }
 
 /** Нусхаи зиндаи рӯзҳои фаъолро аз streak.ts нав мекунад. */
@@ -158,9 +202,7 @@ export function answer(id: string, known: boolean) {
   if (prev === 'known') return;
   if (known) {
     statuses[id] = 'known';
-    demo.daily += 1;
-    demo.coinsNum += COINS_PER_WORD;
-    demo.coins = fmt(demo.coinsNum);
+    demo.daily += 1; // калима аз худ шуд — ба ҳадафи рӯз; танга дар бозиҳо ҳисоб мешавад (на барои калима)
     noteActivity();
   } else if (prev === 'new') {
     statuses[id] = 'repeat';
