@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
 import { ReactNode, useState } from 'react';
-import { Pressable, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle } from 'react-native';
+import { Pressable, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle, useWindowDimensions } from 'react-native';
 import { PullToRefresh } from '../components/PullToRefresh';
 import { Tap } from '../components/Tap';
 import { demo, scenarios, useProgress } from '../data';
@@ -185,14 +185,28 @@ function PrimaryButton({ label, icon, onPress }: { label: string; icon: IconName
   );
 }
 
+/** Тугмаи каталог: градиенти мулоим, иконаи китоб, матн бо тақсимоти мутавозин ва тугмаи сабзи «→». Ба ҳамаи андозаҳои экран мутобиқ. */
 function CatalogHint({ onPress }: { onPress?: () => void }) {
+  const { width } = useWindowDimensions();
+  const compact = width < 350; // телефонҳои хурд (≈320px): андозаҳои каме хурдтар
   return (
     <Tap onPress={onPress}>
-      <Card style={styles.hintRow}>
-        <IconCircle name="bulb" size={36} />
-        <Text style={styles.hintText}>{t.catalogHint}</Text>
-        <Icon name="chevron" size={20} color={colors.textTertiary} />
-      </Card>
+      <LinearGradient
+        colors={['#E1F0E6', 'rgba(255,255,255,0.92)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.hint, compact && styles.hintCompact]}
+      >
+        <View style={[styles.hintIcon, compact && { width: 40, height: 40, borderRadius: 20 }]}>
+          <Icon name="book" size={compact ? 20 : 22} color={colors.green} />
+        </View>
+        <Text style={[styles.hintText, compact && { fontSize: 14, lineHeight: 19 }]} numberOfLines={2}>
+          {t.catalogHint}
+        </Text>
+        <View style={styles.hintGo}>
+          <Icon name="arrow" size={16} color="#fff" strokeWidth={2.4} />
+        </View>
+      </LinearGradient>
     </Tap>
   );
 }
@@ -390,8 +404,39 @@ const styles = StyleSheet.create({
     boxShadow: '0px 6px 16px rgba(30, 127, 85, 0.25)',
   },
   ctaText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  hintRow: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },
-  hintText: { flex: 1, fontSize: 14, color: colors.text, fontWeight: '500', lineHeight: 19 },
+  hint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 72,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: 'rgba(30, 127, 85, 0.18)',
+    ...softShadow,
+  },
+  hintCompact: { gap: 10, paddingHorizontal: 12, paddingVertical: 12, minHeight: 66 },
+  hintIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0px 3px 10px rgba(30, 127, 85, 0.16)',
+  },
+  hintText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 20,
+    color: colors.text,
+    letterSpacing: -0.1,
+    ...({ textWrap: 'balance' } as object), // сатрҳо баробар тақсим мешаванд (на як калимаи танҳо дар сатри дуюм)
+  },
+  hintGo: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' },
   badge: {
     alignSelf: 'flex-start',
     flexDirection: 'row',

@@ -1,7 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { colors, glass } from '../theme';
 import { t } from '../strings';
 import { Icon, IconName } from './Icon';
+import { Tap } from './Tap';
 
 export type TabKey = 'dict' | 'stats' | 'home' | 'rank' | 'profile';
 
@@ -18,36 +19,46 @@ const right: Item[] = [
 
 type Props = { active?: TabKey; onChange?: (k: TabKey) => void };
 
-// Нави поёнӣ: панҷ тугма, "Асосӣ" — тугмаи сабзи баланд дар марказ.
-export function BottomNav({ active = 'home', onChange }: Props) {
-  const Tab = ({ item }: { item: Item }) => {
-    const on = active === item.key;
-    const color = on ? colors.green : colors.navInactive;
-    return (
-      <Pressable style={styles.tab} onPress={() => onChange?.(item.key)}>
-        <Icon name={item.icon} size={22} color={color} />
-        <Text style={[styles.label, { color }]} numberOfLines={1}>
-          {item.label}
-        </Text>
-        <View style={[styles.underline, on && { backgroundColor: colors.green }]} />
-      </Pressable>
-    );
-  };
+const smooth = { transition: 'background-color 180ms ease, transform 180ms ease' } as object;
 
+function Tab({ item, on, fontSize, onPress }: { item: Item; on: boolean; fontSize: number; onPress: () => void }) {
+  const color = on ? colors.green : colors.navInactive;
   return (
-    <View style={styles.bar}>
-      <View style={styles.row}>
+    <Tap style={styles.tab} onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={item.label}>
+      <View style={[styles.pill, on && styles.pillOn, smooth]}>
+        <Icon name={item.icon} size={22} color={color} strokeWidth={on ? 2.2 : 1.8} />
+      </View>
+      <Text style={[styles.label, { fontSize, color, fontWeight: on ? '700' : '500' }]} numberOfLines={1}>
+        {item.label}
+      </Text>
+    </Tap>
+  );
+}
+
+/**
+ * Нави поёнӣ: панели шиша ("ҷазира") бо канораҳои мудаввар; панҷ тугма, "Асосӣ" — тугмаи сабзи баландшуда дар марказ.
+ * Тугмаи фаъол дар "ҳаб"-и сабзи мулоим; дар экранҳои хурд (<350px) ҳарфҳо каме хурдтаранд.
+ */
+export function BottomNav({ active = 'home', onChange }: Props) {
+  const { width } = useWindowDimensions();
+  const fontSize = width < 350 ? 9.5 : width < 380 ? 10.5 : 11; // ҳарфҳо ба паҳнои экран мутобиқ мешаванд, то нишонаҳо бурида нашаванд
+  const homeOn = active === 'home';
+  return (
+    <View style={styles.wrap} pointerEvents="box-none">
+      <View style={[styles.row, glass]}>
         {left.map((it) => (
-          <Tab key={it.key} item={it} />
+          <Tab key={it.key} item={it} on={active === it.key} fontSize={fontSize} onPress={() => onChange?.(it.key)} />
         ))}
-        <Pressable style={styles.homeTab} onPress={() => onChange?.('home')}>
-          <View style={[styles.homeBtn, active !== 'home' && { opacity: 0.85 }]}>
-            <Icon name="home" size={24} color="#fff" />
+        <Tap style={styles.homeTab} onPress={() => onChange?.('home')} accessibilityRole="tab" accessibilityState={{ selected: homeOn }} accessibilityLabel={t.navHome}>
+          <View style={[styles.homeBtn, !homeOn && styles.homeBtnIdle, smooth]}>
+            <Icon name="home" size={25} color="#fff" strokeWidth={2} />
           </View>
-          <Text style={[styles.label, { color: colors.green, marginTop: 4 }]}>{t.navHome}</Text>
-        </Pressable>
+          <Text style={[styles.label, { fontSize, color: colors.green, fontWeight: '700' }]} numberOfLines={1}>
+            {t.navHome}
+          </Text>
+        </Tap>
         {right.map((it) => (
-          <Tab key={it.key} item={it} />
+          <Tab key={it.key} item={it} on={active === it.key} fontSize={fontSize} onPress={() => onChange?.(it.key)} />
         ))}
       </View>
     </View>
@@ -56,31 +67,45 @@ export function BottomNav({ active = 'home', onChange }: Props) {
 
 const styles = StyleSheet.create({
   // 'fixed' — ба экрани браузер часпонида мешавад
-  bar: {
+  wrap: {
     position: 'fixed' as unknown as 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
     zIndex: 10,
     alignItems: 'center',
-    backgroundColor: colors.navBg,
-    borderTopWidth: 1,
-    borderTopColor: colors.hairline,
-    ...glass,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+    ...({ paddingBottom: 'calc(10px + env(safe-area-inset-bottom, 0px))' } as object),
   },
-  row: { flexDirection: 'row', width: '100%', maxWidth: 480, paddingHorizontal: 8, paddingTop: 8, paddingBottom: 6 },
-  tab: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
-  homeTab: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  row: {
+    flexDirection: 'row',
+    width: '100%',
+    maxWidth: 456,
+    height: 64,
+    paddingHorizontal: 2,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.75)',
+    boxShadow: '0px 10px 30px rgba(18, 52, 36, 0.16), 0px 1px 0px rgba(19, 37, 28, 0.04)',
+  },
+  tab: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  pill: { width: 46, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' },
+  pillOn: { backgroundColor: colors.greenSoft },
+  homeTab: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 7 },
   homeBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    marginTop: -24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginBottom: 3,
     backgroundColor: colors.green,
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: `0px 8px 20px ${colors.green}55`,
+    boxShadow: `0px 8px 18px ${colors.green}55`,
   },
-  label: { fontSize: 10, fontWeight: '500', marginTop: 3 },
-  underline: { width: 22, height: 3, borderRadius: 2, marginTop: 4, backgroundColor: 'transparent' },
+  homeBtnIdle: { opacity: 0.9, transform: [{ scale: 0.94 }] },
+  label: { letterSpacing: -0.2, maxWidth: '100%' },
 });
