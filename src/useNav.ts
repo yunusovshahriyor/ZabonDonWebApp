@@ -147,6 +147,21 @@ export function useNav() {
     setNavState({ ...cur, tab: 'home', studying: false, category: null, catalog: true, auth: null });
   }, [ensureStack, leaveSentinel]);
 
+  /** Кушодани категория аз саҳифаи асосӣ (масалан, аз ҷустуҷӯ): асосӣ → каталог → категория, то «Назад» ба рӯйхати каталог барояд. */
+  const openCategoryDeep = useCallback(
+    (id: string) => {
+      const cur = navRef.current;
+      if (isWeb) {
+        ensureStack();
+        leaveSentinel();
+        history.pushState({ zd: 1, tab: 'home', studying: false, cat: null, cg: true } satisfies HState, '');
+        history.pushState({ zd: 1, tab: 'home', studying: false, cat: id, cg: true } satisfies HState, '');
+      }
+      setNavState({ ...cur, tab: 'home', studying: false, catalog: true, category: id, auth: null });
+    },
+    [ensureStack, leaveSentinel],
+  );
+
   const openAuth = useCallback(
     (mode: AuthMode) => {
       const cur = navRef.current;
@@ -213,5 +228,5 @@ export function useNav() {
     else setNavState({ ...navRef.current, studying: false, studyCategory: undefined });
   }, []);
 
-  return { ...nav, toast, goTab, openStudy, closeStudy, openCatalog, closeCatalog, openCategory, closeCategory, openAuth, setAuthMode, closeAuth };
+  return { ...nav, toast, goTab, openStudy, closeStudy, openCatalog, closeCatalog, openCategory, closeCategory, openCategoryDeep, openAuth, setAuthMode, closeAuth };
 }

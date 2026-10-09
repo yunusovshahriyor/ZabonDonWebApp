@@ -7,6 +7,9 @@ import { Tap } from '../components/Tap';
 import { demo, scenarios, setDailyGoal, useProgress } from '../data';
 import { Coin } from '../components/Coin';
 import { GoalDialog } from '../components/GoalDialog';
+import { WordThumb } from '../components/WordThumb';
+import { getCategory, getWordsByCategory, useContent } from '../content';
+import { searchContent } from '../search';
 import { Icon, IconName } from '../components/Icon';
 import { t } from '../strings';
 import { colors, glass, radius, softShadow } from '../theme';
@@ -94,6 +97,8 @@ function SearchBar({ value, onChange }: { value: string; onChange: (v: string) =
           placeholder={t.searchPlaceholder}
           placeholderTextColor={colors.textTertiary}
           style={styles.searchInput}
+          returnKeyType="search"
+          autoCorrect={false}
           autoFocus
         />
         {value ? (
@@ -315,35 +320,102 @@ function PremiumBanner() {
   );
 }
 
-export function HomeScreen({ onStudy, onCatalog }: { onStudy?: () => void; onCatalog?: () => void }) {
+/** Натиҷаҳои ҷустуҷӯ дар саҳифаи асосӣ: категорияҳо ва калимаҳо (русӣ/тоҷикӣ); пахш категорияро мекушояд. */
+function SearchResults({ query, onOpen }: { query: string; onOpen?: (categoryId: string) => void }) {
+  const { status, categories: all } = useContent();
+  const q = query.trim();
+  if (!q) return <Text style={styles.searchInfo}>{t.searchHint}</Text>;
+  if (all.length === 0) return <Text style={styles.searchInfo}>{status === 'error' ? t.loadError : t.loading}</Text>;
+  const { categories, words } = searchContent(q);
+  if (categories.length === 0 && words.length === 0) return <Text style={styles.searchInfo}>{t.notFound}</Text>;
+  return (
+    <View style={{ paddingHorizontal: PAD, marginTop: 14, gap: 8 }}>
+      {categories.length > 0 ? <Text style={styles.resSection}>{t.searchSectionCategories}</Text> : null}
+      {categories.map((c) => (
+        <Tap key={c.id} onPress={() => onOpen?.(c.id)}>
+          <Card style={styles.resRow}>
+            <WordThumb image={c.imageUrl} letter={c.titleTg || c.titleRu} size={46} radius={13} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.resTitle} numberOfLines={1}>
+                {c.titleTg || c.titleRu}
+              </Text>
+              <Text style={styles.resSub} numberOfLines={1}>
+                {c.titleRu && c.titleTg ? `${c.titleRu} · ` : ''}
+                {t.wordsCount(getWordsByCategory(c.id).length)}
+              </Text>
+            </View>
+            <Icon name="chevron" size={18} color={colors.textTertiary} />
+          </Card>
+        </Tap>
+      ))}
+      {words.length > 0 ? <Text style={[styles.resSection, categories.length > 0 && { marginTop: 8 }]}>{t.searchSectionWords}</Text> : null}
+      {words.map((w) => (
+        <Tap key={w.id} onPress={() => onOpen?.(w.categoryId)}>
+          <Card style={styles.resRow}>
+            <WordThumb image={w.image} letter={w.ru} size={46} radius={13} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.resTitle} numberOfLines={1}>
+                {w.ru}
+              </Text>
+              <Text style={styles.resSub} numberOfLines={1}>
+                {w.tj}
+                {getCategory(w.categoryId) ? ` · ${getCategory(w.categoryId)?.titleTg || getCategory(w.categoryId)?.titleRu}` : ''}
+              </Text>
+            </View>
+            <Icon name="chevron" size={18} color={colors.textTertiary} />
+          </Card>
+        </Tap>
+      ))}
+    </View>
+  );
+}
+
+let savedSearch = { open: false, query: '' };
+
+export function HomeScreen({ onStudy, onCatalog, onOpenCategory }: { onStudy?: () => void; onCatalog?: () => void; onOpenCategory?: (categoryId: string) => void }) {
   useProgress(); // аз нав кашидан ҳангоми тағйири пешравӣ
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [query, setQuery] = useState('');
+  // Ҷустуҷӯ пас аз бозгашт аз категория (асосӣ аз нав сохта мешавад) нигоҳ дошта мешавад.
+  const [searchOpen, setSearchOpenRaw] = useState(savedSearch.open);
+  const [query, setQueryRaw] = useState(savedSearch.query);
+  const setSearchOpen = (v: boolean) => {
+    savedSearch.open = v;
+    setSearchOpenRaw(v);
+  };
+  const setQuery = (v: string) => {
+    savedSearch.query = v;
+    setQueryRaw(v);
+  };
   const [goalOpen, setGoalOpen] = useState(false);
   return (
     <View style={styles.root}>
       <PullToRefresh style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <Header
           onSearch={() => {
-            setSearchOpen((v) => !v);
+            setSearchOpen(!searchOpen);
             setQuery('');
           }}
         />
         {searchOpen ? <SearchBar value={query} onChange={setQuery} /> : null}
-        <GoalCard onEdit={() => setGoalOpen(true)} />
-        <View style={{ paddingHorizontal: PAD, marginTop: GAP, gap: GAP }}>
-          <PrimaryButton label={t.learnCta} icon="arrow" onPress={onStudy} />
-          <CatalogHint onPress={onCatalog} />
-          <AiLearnCard />
-          <Text style={[styles.sectionTitle, { marginTop: 8, paddingHorizontal: 4 }]}>{t.trainings}</Text>
-          <View style={{ flexDirection: 'row', gap: GAP }}>
-            <Tile icon="laptop" title={t.trainVocab} />
-            <Tile icon="repeat" title={t.quickTitle} sub={t.quickSub} />
+        {searchOpen ? (
+          <SearchResults query={query} onOpen={onOpenCategory} />
+        ) : (
+          <>
+          <GoalCard onEdit={() => setGoalOpen(true)} />
+          <View style={{ paddingHorizontal: PAD, marginTop: GAP, gap: GAP }}>
+            <PrimaryButton label={t.learnCta} icon="arrow" onPress={onStudy} />
+            <CatalogHint onPress={onCatalog} />
+            <AiLearnCard />
+            <Text style={[styles.sectionTitle, { marginTop: 8, paddingHorizontal: 4 }]}>{t.trainings}</Text>
+            <View style={{ flexDirection: 'row', gap: GAP }}>
+              <Tile icon="laptop" title={t.trainVocab} />
+              <Tile icon="repeat" title={t.quickTitle} sub={t.quickSub} />
+            </View>
+            <PhraseCard />
+            <AchievementCard />
+            <PremiumBanner />
           </View>
-          <PhraseCard />
-          <AchievementCard />
-          <PremiumBanner />
-        </View>
+          </>
+        )}
       </PullToRefresh>
       {/* Диалог берун аз PullToRefresh (transform ва backdrop-filter 'fixed'-ро вайрон мекунанд) */}
       <GoalDialog visible={goalOpen} current={demo.goal} onClose={() => setGoalOpen(false)} onSave={setDailyGoal} />
@@ -395,6 +467,11 @@ const styles = StyleSheet.create({
   segActive: { backgroundColor: colors.greenSoft, borderWidth: 1.5, borderColor: colors.greenLine },
   segText: { fontSize: 15, fontWeight: '600', color: colors.text },
   flag: { width: 24, height: 16, borderRadius: 3, overflow: 'hidden', borderWidth: 1, borderColor: colors.hairline },
+  searchInfo: { textAlign: 'center', color: colors.textSecondary, fontSize: 14, marginTop: 28, paddingHorizontal: 32, lineHeight: 20 },
+  resSection: { fontSize: 13, fontWeight: '800', color: colors.textSecondary, letterSpacing: 0.4, textTransform: 'uppercase', paddingHorizontal: 4 },
+  resRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10 },
+  resTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
+  resSub: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
   searchRow: { height: 46, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
   searchInput: { flex: 1, height: '100%', marginLeft: 10, fontSize: 14, color: colors.text, outlineStyle: 'none' } as object,
   cta: {
