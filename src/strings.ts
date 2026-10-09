@@ -51,6 +51,8 @@ export const t = {
   resetProgress: 'Аз нав оғоз кардан (санҷиш)',
   tagline: 'Омӯзиши забони русӣ',
   searchPlaceholder: 'Ҷустуҷӯи калимаҳо…',
+  searchClear: 'Пок кардани матн',
+  searchClose: 'Пӯшидани ҷустуҷӯ',
   searchHint: 'Калима ё категорияро ба русӣ ё тоҷикӣ нависед',
   searchSectionCategories: 'Категорияҳо',
   searchSectionWords: 'Калимаҳо',

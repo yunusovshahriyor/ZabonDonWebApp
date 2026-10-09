@@ -60,7 +60,7 @@ const toastMotion = { transition: 'opacity 220ms ease, transform 220ms ease' } a
 // Дар телефон экрани пурра; дар компютер — сутуни марказии 480px.
 export default function App() {
   useGlobalStyles();
-  const { tab, studying, studyCategory, category, catalog, toast, auth, goTab, openStudy, closeStudy, openCatalog, closeCatalog, openCategory, closeCategory, openCategoryDeep, openAuth, setAuthMode, closeAuth } = useNav();
+  const { tab, studying, studyCategory, category, catalog, toast, auth, search, goTab, openStudy, closeStudy, openCatalog, closeCatalog, openCategory, closeCategory, openCategoryDeep, openSearch, closeSearch, openAuth, setAuthMode, closeAuth } = useNav();
 
 
   // Воридшавӣ / сабти ном — экрани пурра (бе менюи поёнӣ)
@@ -95,7 +95,7 @@ export default function App() {
     <View style={styles.outer}>
       <View style={styles.page}>
         {tab === 'home' &&
-          (catalog ? (
+          (catalog || category ? (
             category ? (
               <CategoryScreen
                 categoryId={category}
@@ -116,6 +116,9 @@ export default function App() {
               }}
               onCatalog={openCatalog}
               onOpenCategory={openCategoryDeep}
+              search={search}
+              onOpenSearch={openSearch}
+              onCloseSearch={closeSearch}
             />
           ))}
         {tab === 'profile' && <ProfileScreen onAuth={openAuth} />}

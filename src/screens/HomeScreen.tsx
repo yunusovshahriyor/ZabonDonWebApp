@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleProp, StyleSheet, Text, TextInput, View, ViewStyle, useWindowDimensions } from 'react-native';
 import { PullToRefresh } from '../components/PullToRefresh';
 import { Tap } from '../components/Tap';
@@ -86,12 +86,15 @@ function Header({ onSearch }: { onSearch: () => void }) {
   );
 }
 
-function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+/** Навори ҷустуҷӯ: «×» ҳамеша намоён аст; агар матн бошад — онро пок мекунад, агар холӣ бошад — ҷустуҷӯро мепӯшад. */
+function SearchBar({ value, onChange, onClose }: { value: string; onChange: (v: string) => void; onClose: () => void }) {
+  const ref = useRef<TextInput>(null);
   return (
     <Card style={{ marginHorizontal: PAD, marginTop: 12, borderRadius: 999 }}>
       <View style={styles.searchRow}>
         <Icon name="search" size={20} color={colors.textSecondary} />
         <TextInput
+          ref={ref}
           value={value}
           onChangeText={onChange}
           placeholder={t.searchPlaceholder}
@@ -99,13 +102,21 @@ function SearchBar({ value, onChange }: { value: string; onChange: (v: string) =
           style={styles.searchInput}
           returnKeyType="search"
           autoCorrect={false}
-          autoFocus
+          autoFocus={!value}
         />
-        {value ? (
-          <Pressable onPress={() => onChange('')} style={{ padding: 2 }}>
-            <Icon name="close" size={20} color={colors.textTertiary} />
-          </Pressable>
-        ) : null}
+        <Tap
+          onPress={() => {
+            if (value) {
+              onChange('');
+              ref.current?.focus();
+            } else onClose();
+          }}
+          style={styles.searchClear}
+          accessibilityRole="button"
+          accessibilityLabel={value ? t.searchClear : t.searchClose}
+        >
+          <Icon name="close" size={20} color={colors.textSecondary} />
+        </Tap>
       </View>
     </Card>
   );
@@ -370,32 +381,40 @@ function SearchResults({ query, onOpen }: { query: string; onOpen?: (categoryId:
   );
 }
 
-let savedSearch = { open: false, query: '' };
+let savedQuery = '';
 
-export function HomeScreen({ onStudy, onCatalog, onOpenCategory }: { onStudy?: () => void; onCatalog?: () => void; onOpenCategory?: (categoryId: string) => void }) {
+type HomeProps = {
+  onStudy?: () => void;
+  onCatalog?: () => void;
+  onOpenCategory?: (categoryId: string) => void;
+  /** Ҷустуҷӯ кушода аст (дар таърихи навигатсия нигоҳ дошта мешавад: «Назад» онро мепӯшад). */
+  search?: boolean;
+  onOpenSearch?: () => void;
+  onCloseSearch?: () => void;
+};
+
+export function HomeScreen({ onStudy, onCatalog, onOpenCategory, search = false, onOpenSearch, onCloseSearch }: HomeProps) {
   useProgress(); // аз нав кашидан ҳангоми тағйири пешравӣ
-  // Ҷустуҷӯ пас аз бозгашт аз категория (асосӣ аз нав сохта мешавад) нигоҳ дошта мешавад.
-  const [searchOpen, setSearchOpenRaw] = useState(savedSearch.open);
-  const [query, setQueryRaw] = useState(savedSearch.query);
-  const setSearchOpen = (v: boolean) => {
-    savedSearch.open = v;
-    setSearchOpenRaw(v);
-  };
+  // Матни ҷустуҷӯ пас аз бозгашт аз категория (асосӣ аз нав сохта мешавад) нигоҳ дошта мешавад;
+  // кушода/пӯшида будани ҷустуҷӯ аз навигатсия меояд (`search`), то тугмаи «Назад» онро бибандад.
+  const searchOpen = search;
+  const [query, setQueryRaw] = useState(savedQuery);
   const setQuery = (v: string) => {
-    savedSearch.query = v;
+    savedQuery = v;
     setQueryRaw(v);
   };
+  // Пӯшидани ҷустуҷӯ (бо ҳар роҳ, аз ҷумла «Назад») матнро пок мекунад.
+  useEffect(() => {
+    if (!search) setQuery('');
+  }, [search]);
   const [goalOpen, setGoalOpen] = useState(false);
   return (
     <View style={styles.root}>
       <PullToRefresh style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <Header
-          onSearch={() => {
-            setSearchOpen(!searchOpen);
-            setQuery('');
-          }}
+          onSearch={() => (searchOpen ? onCloseSearch?.() : onOpenSearch?.())}
         />
-        {searchOpen ? <SearchBar value={query} onChange={setQuery} /> : null}
+        {searchOpen ? <SearchBar value={query} onChange={setQuery} onClose={() => onCloseSearch?.()} /> : null}
         {searchOpen ? (
           <SearchResults query={query} onOpen={onOpenCategory} />
         ) : (
@@ -472,6 +491,7 @@ const styles = StyleSheet.create({
   resRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10 },
   resTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
   resSub: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  searchClear: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginRight: -8 },
   searchRow: { height: 46, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
   searchInput: { flex: 1, height: '100%', marginLeft: 10, fontSize: 14, color: colors.text, outlineStyle: 'none' } as object,
   cta: {
