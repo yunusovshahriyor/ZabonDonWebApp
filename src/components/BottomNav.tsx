@@ -19,18 +19,24 @@ const right: Item[] = [
 
 type Props = { active?: TabKey; onChange?: (k: TabKey) => void };
 
-const smooth = { transition: 'background-color 180ms ease, transform 180ms ease' } as object;
+// Гузариши тез (90мс): ҳолати пахш дар лаҳзаи ламс намоён мешавад (бо Tap бе таъхир).
+const smooth = { transition: 'background-color 90ms ease-out, transform 90ms ease-out, opacity 90ms ease-out' } as object;
 
 function Tab({ item, on, fontSize, onPress }: { item: Item; on: boolean; fontSize: number; onPress: () => void }) {
   const color = on ? colors.green : colors.navInactive;
   return (
     <Tap style={styles.tab} onPress={onPress} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={item.label}>
-      <View style={[styles.pill, on && styles.pillOn, smooth]}>
-        <Icon name={item.icon} size={22} color={color} strokeWidth={on ? 2.2 : 1.8} />
-      </View>
-      <Text style={[styles.label, { fontSize, color, fontWeight: on ? '700' : '500' }]} numberOfLines={1}>
-        {item.label}
-      </Text>
+      {({ pressed }) => (
+        <>
+          {/* Ҳангоми ламс "ҳаб" фавран пайдо мешавад (ҳатто барои тугмаи ғайрифаъол) */}
+          <View style={[styles.pill, on && styles.pillOn, pressed && !on && styles.pillPressed, smooth]}>
+            <Icon name={item.icon} size={22} color={pressed ? colors.green : color} strokeWidth={on || pressed ? 2.2 : 1.8} />
+          </View>
+          <Text style={[styles.label, { fontSize, color: pressed ? colors.green : color, fontWeight: on ? '700' : '500' }]} numberOfLines={1}>
+            {item.label}
+          </Text>
+        </>
+      )}
     </Tap>
   );
 }
@@ -50,12 +56,16 @@ export function BottomNav({ active = 'home', onChange }: Props) {
           <Tab key={it.key} item={it} on={active === it.key} fontSize={fontSize} onPress={() => onChange?.(it.key)} />
         ))}
         <Tap style={styles.homeTab} onPress={() => onChange?.('home')} accessibilityRole="tab" accessibilityState={{ selected: homeOn }} accessibilityLabel={t.navHome}>
-          <View style={[styles.homeBtn, !homeOn && styles.homeBtnIdle, smooth]}>
-            <Icon name="home" size={25} color="#fff" strokeWidth={2} />
-          </View>
-          <Text style={[styles.label, { fontSize, color: colors.green, fontWeight: '700' }]} numberOfLines={1}>
-            {t.navHome}
-          </Text>
+          {({ pressed }) => (
+            <>
+              <View style={[styles.homeBtn, !homeOn && styles.homeBtnIdle, pressed && styles.homeBtnPressed, smooth]}>
+                <Icon name="home" size={25} color="#fff" strokeWidth={2} />
+              </View>
+              <Text style={[styles.label, { fontSize, color: colors.green, fontWeight: '700' }]} numberOfLines={1}>
+                {t.navHome}
+              </Text>
+            </>
+          )}
         </Tap>
         {right.map((it) => (
           <Tab key={it.key} item={it} on={active === it.key} fontSize={fontSize} onPress={() => onChange?.(it.key)} />
@@ -93,12 +103,14 @@ const styles = StyleSheet.create({
   tab: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 2 },
   pill: { width: 46, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' },
   pillOn: { backgroundColor: colors.greenSoft },
+  pillPressed: { backgroundColor: 'rgba(30, 127, 85, 0.14)' },
   homeTab: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 7 },
   homeBtn: {
     width: 56,
     height: 56,
     borderRadius: 28,
     marginBottom: 3,
+    flexShrink: 0, // кӯтоҳ нашавад, вақте мундариҷа аз баландии панел зиёд аст (тугма болотар мебарояд)
     backgroundColor: colors.green,
     borderWidth: 4,
     borderColor: 'rgba(255, 255, 255, 0.95)',
@@ -107,5 +119,6 @@ const styles = StyleSheet.create({
     boxShadow: `0px 8px 18px ${colors.green}55`,
   },
   homeBtnIdle: { opacity: 0.9, transform: [{ scale: 0.94 }] },
-  label: { letterSpacing: -0.2, maxWidth: '100%' },
+  homeBtnPressed: { backgroundColor: colors.greenDark, opacity: 1, transform: [{ scale: 0.9 }] },
+  label: { letterSpacing: -0.2, maxWidth: '100%', flexShrink: 0 },
 });
