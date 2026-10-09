@@ -44,6 +44,7 @@ export const t = {
   phaseIntro: 'Шиносӣ',
   phaseGames: 'Бозиҳо',
   masteredLabel: 'Аз худ шуд',
+  trueFalsePrompt: 'Оё ин тарҷума дуруст аст?',
   pickTjPrompt: 'Тарҷумаро интихоб кунед',
   pickRuPrompt: 'Калимаи русиро интихоб кунед',
   typePrompt: 'Калимаро ба русӣ нависед',

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../../components/Icon';
 import { ProgressRing } from '../../components/ProgressRing';
 import { Tap } from '../../components/Tap';
+import { WordThumb } from '../../components/WordThumb';
 import { getAllWords } from '../../content';
 import { Coin } from '../../components/Coin';
 import { InfoDialog } from '../../components/InfoDialog';
@@ -13,11 +14,13 @@ import { colors, glass, softShadow } from '../../theme';
 import { MatchBoard } from './Match';
 import { PrimaryBtn, StudyHeader, c, haptic, speak } from './common';
 
-// Зинаҳои азхудкунӣ: 0 → интихоби тарҷума, 1 → интихоби русӣ, 2 → навиштан,
-// 3 → ҷуфтёбӣ, 4 → пур кардани ҷойи холӣ дар ҷумла, 5 → ҷамъ кардан аз ҳарфҳо, 6 → аз худ шуд.
-type QType = 'pickTj' | 'pickRu' | 'type' | 'match' | 'cloze' | 'scramble';
-const TYPES: QType[] = ['pickTj', 'pickRu', 'type', 'match', 'cloze', 'scramble'];
+// Зинаҳои азхудкунӣ (4 бозӣ, бо ҳамин тартиб):
+//   0 → интихоби калимаи русӣ (pickRu), 1 → ҷуфтёбӣ (match), 2 → дуруст / нодуруст (trueFalse, мисли TrueFalseActivity дар Android),
+//   3 → ҷамъ кардан аз ҳарфҳо (scramble), 4 → аз худ шуд.
+type QType = 'pickRu' | 'match' | 'trueFalse' | 'scramble';
+const TYPES: QType[] = ['pickRu', 'match', 'trueFalse', 'scramble'];
 const MASTERED = TYPES.length;
+const MATCH_STAGE = TYPES.indexOf('match');
 const MATCH_PAIRS = 5;
 const AUTO_NEXT_MS = 2000; // пас аз ҷавоби дуруст ба саволи навбатӣ худкор мегузарад
 
@@ -26,28 +29,10 @@ type Question = {
   type: QType;
   options: string[];
   pairs?: Word[]; // match
-  sentence?: string; // cloze: ҷумла бо "____" ба ҷои калима
   letters?: string[]; // scramble
+  shown?: string; // trueFalse: тарҷумае, ки нишон дода мешавад (дуруст ё хато)
+  isTrue?: boolean; // trueFalse: оё тарҷумаи нишондодашуда дуруст аст
 };
-
-/** Ҷумлаи мисолро бо ҷойи холӣ месозад (шакли тағйирёфтаи калима низ ёфта мешавад: вода → воды). */
-function blankSentence(word: Word): string | null {
-  const base = norm(word.ru);
-  const stem = base.length >= 4 ? base.slice(0, -1) : base;
-  let found = false;
-  const out = word.exRu
-    .split(/(\s+)/)
-    .map((tok) => {
-      const m = tok.match(/^([^\p{L}]*)(\p{L}+)(.*)$/u);
-      if (!found && m && norm(m[2]).startsWith(stem)) {
-        found = true;
-        return `${m[1]}____${m[3]}`;
-      }
-      return tok;
-    })
-    .join('');
-  return found ? out : null;
-}
 
 /** Ҳарфҳои омехта; ҳамеша аз тартиби аслӣ фарқ мекунад (агар имкон бошад). */
 function scrambleLetters(ru: string): string[] {
@@ -61,6 +46,13 @@ function scrambleLetters(ru: string): string[] {
 const shuffle = <T,>(a: T[]) => [...a].sort(() => Math.random() - 0.5);
 const norm = (s: string) => s.trim().toLowerCase().replace(/ё/g, 'е');
 
+/** Калимаҳои дигар: аввал аз ҳамон категория, баъд аз дигарон (барои вариантҳои хато). */
+function distractors(word: Word, key: 'ru' | 'tj', n: number): string[] {
+  const others = getAllWords().filter((x) => x.id !== word.id && x[key] !== word[key]);
+  const pool = [...shuffle(others.filter((x) => x.categoryId === word.categoryId)), ...shuffle(others.filter((x) => x.categoryId !== word.categoryId))];
+  return [...new Set(pool.map((x) => x[key]))].slice(0, n);
+}
+
 function makeQuestion(words: Word[], stage: Record<string, number>, lastSeen: Record<string, number>, lastId: string | null): Question | null {
   const open = words.filter((w) => stage[w.id] < MASTERED);
   if (open.length === 0) return null;
@@ -69,11 +61,11 @@ function makeQuestion(words: Word[], stage: Record<string, number>, lastSeen: Re
   const minSeen = Math.min(...pool.map((w) => lastSeen[w.id] ?? -1));
   pool = pool.filter((w) => (lastSeen[w.id] ?? -1) === minSeen);
   const word = pool[Math.floor(Math.random() * pool.length)];
-  let type = TYPES[stage[word.id]];
-  const sentence = type === 'cloze' ? blankSentence(word) : null;
-  if (type === 'cloze' && !sentence) type = 'pickRu'; // ҷумла нест ё калима дар он нест
+  const type = TYPES[stage[word.id]];
+
   if (type === 'match') {
-    const others = shuffle(words.filter((w) => w.id !== word.id)).sort((a, b) => Number(stage[b.id] === 3) - Number(stage[a.id] === 3));
+    // Дар ҷуфтёбӣ аввал калимаҳое меоянд, ки худашон дар ҳамин зинаанд
+    const others = shuffle(words.filter((w) => w.id !== word.id)).sort((a, b) => Number(stage[b.id] === MATCH_STAGE) - Number(stage[a.id] === MATCH_STAGE));
     let pairs = [word, ...others].slice(0, MATCH_PAIRS);
     if (pairs.length < 3) {
       const extra = shuffle(getAllWords().filter((x) => !pairs.some((p) => p.id === x.id))).slice(0, 3 - pairs.length);
@@ -82,24 +74,20 @@ function makeQuestion(words: Word[], stage: Record<string, number>, lastSeen: Re
     return { word, type, options: [], pairs };
   }
   if (type === 'scramble') return { word, type, options: [], letters: scrambleLetters(word.ru) };
-  let options: string[] = [];
-  if (type === 'pickTj' || type === 'pickRu' || type === 'cloze') {
-    const key = type === 'pickTj' ? 'tj' : 'ru';
-    // Хатоҳо аввал аз ҳамон категория, баъд аз дигарон
-    const others = getAllWords().filter((x) => x.id !== word.id && x[key] !== word[key]);
-    const pool = [...shuffle(others.filter((x) => x.categoryId === word.categoryId)), ...shuffle(others.filter((x) => x.categoryId !== word.categoryId))];
-    const wrong = [...new Set(pool.map((x) => x[key]))].slice(0, 3);
-    options = shuffle([word[key], ...wrong]);
+  if (type === 'trueFalse') {
+    // Мисли Android (buildQuestion): 50% — тарҷумаи дуруст, 50% — тарҷумаи калимаи дигар
+    const wrong = distractors(word, 'tj', 1)[0];
+    const showCorrect = Math.random() < 0.5 || !wrong;
+    return { word, type, options: [], shown: showCorrect ? word.tj : wrong, isTrue: showCorrect };
   }
-  return { word, type, options, sentence: sentence ?? undefined };
+  // pickRu: тарҷума нишон дода мешавад, аз 4 вариант калимаи русӣ интихоб мешавад
+  return { word, type, options: shuffle([word.ru, ...distractors(word, 'ru', 3)]) };
 }
 
 const PROMPTS: Record<QType, string> = {
-  pickTj: t.pickTjPrompt,
   pickRu: t.pickRuPrompt,
-  type: t.typePrompt,
   match: t.matchPrompt,
-  cloze: t.clozePrompt,
+  trueFalse: t.trueFalsePrompt,
   scramble: t.scramblePrompt,
 };
 
@@ -137,7 +125,6 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
     return first;
   });
   const [picked, setPicked] = useState<string | null>(null);
-  const [typed, setTyped] = useState('');
   const [built, setBuilt] = useState<number[]>([]); // scramble: индекси ҳарфҳои интихобшуда
   const [result, setResult] = useState<'idle' | 'right' | 'wrong'>('idle');
 
@@ -156,7 +143,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
       if (!q?.pairs) return;
       const upd: Record<string, number> = {};
       for (const w of q.pairs) {
-        if (stage[w.id] !== TYPES.indexOf('match')) continue; // танҳо калимаҳои дар ин зина буда пеш меравад
+        if (stage[w.id] !== MATCH_STAGE) continue; // танҳо калимаҳои дар ин зина буда пеш меравад
         upd[w.id] = wrongIds.includes(w.id) ? Math.max(0, stage[w.id] - 1) : stage[w.id] + 1;
       }
       setStage((st) => ({ ...st, ...upd }));
@@ -175,18 +162,22 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
   if (!q) return null;
 
   const mastered = words.filter((w) => stage[w.id] >= MASTERED).length;
-  const correct = q.type === 'pickTj' ? q.word.tj : q.word.ru;
+  // Ҷавоби дуруст (барои нишон додан ҳангоми хато)
+  const correct = q.type === 'trueFalse' ? `${q.word.ru} — ${q.word.tj}` : q.word.ru;
   const scrambleAnswer = q.letters ? built.map((i) => q.letters![i]).join('') : '';
 
   const submit = (value: string) => {
     if (result !== 'idle') return;
-    const ok = q.type === 'type' || q.type === 'scramble' ? norm(value) === norm(q.word.ru.replace(/\s+/g, '')) : value === correct;
+    let ok: boolean;
+    if (q.type === 'trueFalse') ok = (value === 'true') === q.isTrue;
+    else if (q.type === 'scramble') ok = norm(value) === norm(q.word.ru.replace(/\s+/g, ''));
+    else ok = value === q.word.ru; // pickRu
     setPicked(value);
     setResult(ok ? 'right' : 'wrong');
     setEarned(ok ? earnedRef.current + COIN_REWARD_CORRECT : penalizeCoins(earnedRef.current, 1));
     const cur = stage[q.word.id];
     const next = ok ? cur + 1 : Math.max(0, cur - 1);
-    if (ok && next >= MASTERED) answer(q.word.id, true); // калима "омӯхташуда" мешавад (+ танга)
+    if (ok && next >= MASTERED) answer(q.word.id, true); // калима "омӯхташуда" мешавад
     if (!ok) setMistakes((m) => m + 1);
     setStage((st) => ({ ...st, [q.word.id]: next }));
   };
@@ -207,7 +198,6 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
     }
     setQ(nq);
     setPicked(null);
-    setTyped('');
     setBuilt([]);
     setResult('idle');
   };
@@ -216,13 +206,21 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
 
   const optionStyle = (opt: string) => {
     if (result === 'idle') return [g.option];
-    if (opt === correct) return [g.option, g.optionRight];
+    if (opt === q.word.ru) return [g.option, g.optionRight];
     if (opt === picked) return [g.option, g.optionWrong];
     return [g.option, { opacity: 0.45 }];
   };
 
-  const showSpeaker = q.type === 'pickTj';
-  const prompt = q.type === 'pickTj' ? q.word.ru : q.word.tj;
+  // Тугмаи дуруст/нодуруст пас аз ҷавоб: интихобшуда сабз (дуруст) ё сурх (хато), дигар кам-равшан (мисли Android)
+  const tfButtonStyle = (which: 'true' | 'false') => {
+    const base = [g.tfBtn, which === 'true' ? g.tfTrue : g.tfFalse];
+    if (result === 'idle') return base;
+    if (picked === which) return [...base, result === 'right' ? g.tfPickedRight : g.tfPickedWrong];
+    return [...base, { opacity: 0.35 }];
+  };
+
+  const showPrompt = q.type === 'pickRu'; // дар trueFalse калима дар корти худаш аст, дар match/scramble — ҷои дигар
+  const prompt = q.word.tj;
 
   return (
     <View style={{ flex: 1 }}>
@@ -243,7 +241,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
               <Text style={c.chipText}>{PROMPTS[q.type]}</Text>
             </View>
             <View style={{ flex: 1 }} />
-            {/* Прогреси худи ҳамин калима (зинаҳо: 0 → 3) */}
+            {/* Прогреси худи ҳамин калима (зинаҳо: 0 → 4) */}
             <ProgressRing size={38} stroke={4} progress={stage[q.word.id] / MASTERED} color={colors.green} trackColor={colors.track}>
               {stage[q.word.id] >= MASTERED ? (
                 <Icon name="check" size={15} color={colors.green} strokeWidth={3} />
@@ -254,23 +252,56 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
               )}
             </ProgressRing>
           </View>
-          {q.type === 'match' ? (
-            <MatchBoard key={`${q.word.id}-${tick.current}`} pairs={q.pairs!} onFinish={finishMatch} />
-          ) : null}
-          {q.type !== 'match' && (
-          <View style={g.promptRow}>
-            <Text style={g.prompt}>{q.type === 'cloze' ? q.sentence : prompt}</Text>
-            {showSpeaker ? (
-              <Tap style={g.speak} onPress={() => speak(q.word.ru)}>
-                <Icon name="volume" size={16} color={colors.green} />
-              </Tap>
-            ) : null}
-          </View>
-          )}
-          {q.type === 'cloze' ? <Text style={g.hint}>{q.word.exTj}</Text> : null}
 
-          {q.type === 'match' ? null : q.type === 'scramble' ? (
+          {q.type === 'match' ? <MatchBoard key={`${q.word.id}-${tick.current}`} pairs={q.pairs!} onFinish={finishMatch} /> : null}
+
+          {showPrompt ? (
+            <View style={g.promptRow}>
+              <Text style={g.prompt}>{prompt}</Text>
+            </View>
+          ) : null}
+
+          {q.type === 'pickRu' ? (
+            <View style={{ marginTop: 12, gap: 8 }}>
+              {q.options.map((opt) => (
+                <Tap key={opt} style={optionStyle(opt)} onPress={() => submit(opt)}>
+                  <Text style={g.optionText}>{opt}</Text>
+                </Tap>
+              ))}
+            </View>
+          ) : null}
+
+          {q.type === 'trueFalse' ? (
             <View style={{ marginTop: 12, gap: 12 }}>
+              {/* Корти калима: акс + русӣ + тарҷумаи нишондодашуда (дуруст ё хато) */}
+              <View style={g.tfCard}>
+                <WordThumb image={q.word.image} letter={q.word.ru} size={84} radius={16} />
+                <View style={{ flex: 1 }}>
+                  <Text style={g.tfRu}>{q.word.ru}</Text>
+                  <Text style={g.tfTj}>{q.shown}</Text>
+                </View>
+                <Tap style={g.speak} onPress={() => speak(q.word.ru)}>
+                  <Icon name="volume" size={16} color={colors.green} />
+                </Tap>
+              </View>
+              <View style={g.tfRow}>
+                <Tap style={tfButtonStyle('true')} onPress={() => submit('true')}>
+                  <Icon name="check" size={18} color="#fff" strokeWidth={2.8} />
+                  <Text style={g.tfText}>{t.correct}</Text>
+                </Tap>
+                <Tap style={tfButtonStyle('false')} onPress={() => submit('false')}>
+                  <Icon name="close" size={18} color="#fff" strokeWidth={2.8} />
+                  <Text style={g.tfText}>{t.wrong}</Text>
+                </Tap>
+              </View>
+            </View>
+          ) : null}
+
+          {q.type === 'scramble' ? (
+            <View style={{ marginTop: 12, gap: 12 }}>
+              <View style={g.promptRow}>
+                <Text style={g.prompt}>{prompt}</Text>
+              </View>
               <View style={[g.slots, result === 'right' && g.optionRight, result === 'wrong' && g.optionWrong]}>
                 {built.map((i, pos) => (
                   <Tap key={pos} style={g.tile} onPress={() => result === 'idle' && setBuilt((b) => b.filter((_, k) => k !== pos))}>
@@ -290,30 +321,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
                 ))}
               </View>
             </View>
-          ) : q.type === 'type' ? (
-            <View style={{ marginTop: 12 }}>
-              <TextInput
-                value={typed}
-                onChangeText={setTyped}
-                editable={result === 'idle'}
-                placeholder={t.typePlaceholder}
-                placeholderTextColor={colors.textTertiary}
-                autoFocus
-                autoCapitalize="none"
-                autoCorrect={false}
-                onSubmitEditing={() => typed.trim() && submit(typed)}
-                style={[g.input, result === 'right' && g.optionRight, result === 'wrong' && g.optionWrong] as object}
-              />
-            </View>
-          ) : (
-            <View style={{ marginTop: 12, gap: 8 }}>
-              {q.options.map((opt) => (
-                <Tap key={opt} style={optionStyle(opt)} onPress={() => submit(opt)}>
-                  <Text style={g.optionText}>{opt}</Text>
-                </Tap>
-              ))}
-            </View>
-          )}
+          ) : null}
         </View>
 
         {result !== 'idle' && (
@@ -340,9 +348,7 @@ export function Games({ words, onDone, onClose }: { words: Word[]; onDone: (mist
 
       <View style={c.actions}>
         {result === 'idle' ? (
-          q.type === 'type' ? (
-            <PrimaryBtn label={t.check} onPress={() => submit(typed)} disabled={!typed.trim()} />
-          ) : q.type === 'scramble' ? (
+          q.type === 'scramble' ? (
             <PrimaryBtn label={t.check} onPress={() => submit(scrambleAnswer)} disabled={built.length !== q.letters!.length} />
           ) : null
         ) : (
@@ -365,7 +371,6 @@ const g = StyleSheet.create({
   card: { borderRadius: 22, padding: 14, backgroundColor: colors.card, borderWidth: 1, borderColor: 'rgba(255,255,255,0.7)' },
   promptRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
   prompt: { flex: 1, fontSize: 26, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
-  hint: { marginTop: 6, fontSize: 14, color: colors.textSecondary, fontStyle: 'italic' },
   slots: {
     minHeight: 56,
     flexDirection: 'row',
@@ -403,18 +408,17 @@ const g = StyleSheet.create({
   optionRight: { backgroundColor: '#DCF3E5', borderColor: colors.green },
   optionWrong: { backgroundColor: '#FBE0DD', borderColor: '#D8483B' },
   optionText: { fontSize: 15, fontWeight: '600', color: colors.text },
-  input: {
-    height: 46,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderWidth: 1.5,
-    borderColor: colors.greenLine,
-    fontSize: 17,
-    fontWeight: '600',
-    color: colors.text,
-    ...({ outlineStyle: 'none' } as object),
-  },
+  // Дуруст / нодуруст
+  tfCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.9)', borderWidth: 1, borderColor: colors.hairline },
+  tfRu: { fontSize: 24, fontWeight: '800', color: colors.text, letterSpacing: -0.4 },
+  tfTj: { fontSize: 18, fontWeight: '700', color: colors.green, marginTop: 2 },
+  tfRow: { flexDirection: 'row', gap: 10 },
+  tfBtn: { flex: 1, height: 50, borderRadius: 25, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  tfTrue: { backgroundColor: colors.green, boxShadow: '0px 6px 16px rgba(30, 127, 85, 0.28)' },
+  tfFalse: { backgroundColor: '#D8483B', boxShadow: '0px 6px 16px rgba(216, 72, 59, 0.28)' },
+  tfPickedRight: { outlineStyle: 'solid', outlineWidth: 3, outlineColor: '#A9DDBF' } as object,
+  tfPickedWrong: { outlineStyle: 'solid', outlineWidth: 3, outlineColor: '#F0B3AC' } as object,
+  tfText: { color: '#fff', fontSize: 16, fontWeight: '800' },
   feedback: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1 },
   feedbackRight: { backgroundColor: '#DCF3E5', borderColor: '#A9DDBF' },
   feedbackWrong: { backgroundColor: '#FBE0DD', borderColor: '#F0B3AC' },
