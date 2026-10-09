@@ -85,7 +85,7 @@ export function AuthScreen({ mode, onMode, onClose, onDone }: Props) {
         {!reset ? (
           <View style={s.segment}>
             {(['signin', 'signup'] as AuthMode[]).map((m) => (
-              <Tap key={m} style={[s.segBtn, mode === m && s.segOn]} onPress={() => mode !== m && switchMode(m)}>
+              <Tap key={m} style={[s.segBtn, mode === m && s.segOn]} pressedStyle={mode === m ? undefined : s.segPressed} onPress={() => mode !== m && switchMode(m)}>
                 <Text style={[s.segText, mode === m && s.segTextOn]}>{m === 'signin' ? t.signIn : t.signUp}</Text>
               </Tap>
             ))}
@@ -161,10 +161,10 @@ export function AuthScreen({ mode, onMode, onClose, onDone }: Props) {
                   autoCorrect={false}
                   returnKeyType={signup ? 'next' : 'go'}
                   onSubmitEditing={() => (signup ? confirmRef.current?.focus() : submit())}
-                  style={[s.input, { paddingRight: 96 }] as object}
+                  style={[s.input, { paddingRight: 52 }] as object}
                 />
-                <Tap style={s.eye} onPress={() => setShow((v) => !v)} accessibilityLabel={show ? t.hidePassword : t.showPassword}>
-                  <Text style={s.eyeText}>{show ? t.hidePassword : t.showPassword}</Text>
+                <Tap style={s.eye} onPress={() => setShow((v) => !v)} accessibilityRole="button" accessibilityLabel={show ? t.hidePassword : t.showPassword}>
+                  <Icon name={show ? 'eyeOff' : 'eye'} size={22} color={show ? colors.green : colors.textSecondary} />
                 </Tap>
               </View>
             </Field>
@@ -237,6 +237,7 @@ const s = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 60 },
   segment: { flexDirection: 'row', padding: 4, borderRadius: 999, backgroundColor: 'rgba(19, 37, 28, 0.06)', marginBottom: 14 },
   segBtn: { flex: 1, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  segPressed: { backgroundColor: 'rgba(30, 127, 85, 0.14)' },
   segOn: { backgroundColor: '#fff', boxShadow: '0px 2px 8px rgba(18, 52, 36, 0.12)' },
   segText: { fontSize: 15, fontWeight: '600', color: colors.textSecondary },
   segTextOn: { color: colors.green, fontWeight: '800' },
@@ -255,8 +256,7 @@ const s = StyleSheet.create({
     ...({ outlineStyle: 'none' } as object),
   },
   passRow: { justifyContent: 'center' },
-  eye: { position: 'absolute', right: 6, height: 38, paddingHorizontal: 10, justifyContent: 'center' },
-  eyeText: { fontSize: 12.5, fontWeight: '700', color: colors.green },
+  eye: { position: 'absolute', right: 3, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   fieldErr: { fontSize: 12.5, color: '#C0392B', marginTop: 5, fontWeight: '600' },
   warn: { marginTop: 12, padding: 12, borderRadius: 14, backgroundColor: '#FBEBCB', borderWidth: 1, borderColor: '#F0D08A' },
   warnText: { fontSize: 13, color: '#8A5200', fontWeight: '600', lineHeight: 18 },
