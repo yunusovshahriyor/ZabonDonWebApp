@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../components/Icon';
 import { PullToRefresh } from '../components/PullToRefresh';
 import { Tap } from '../components/Tap';
 import { demo, useProgress } from '../data';
+import { signOut, useAuth } from '../auth';
 import { useInstall } from '../pwa';
+import type { AuthMode } from '../useNav';
 import { t } from '../strings';
 import { colors, glass, radius, softShadow } from '../theme';
 
@@ -52,8 +53,8 @@ function InstallCard() {
   );
 }
 
-/** Корти меҳмон: аватар, "Ворид шудан" ва "Сабти ном" (воридшавии воқеӣ баъдтар илова мешавад). */
-function GuestCard({ onAuth }: { onAuth: () => void }) {
+/** Корти меҳмон: аватар, "Ворид шудан" ва "Сабти ном". */
+function GuestCard({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
   return (
     <View style={s.card}>
       <View style={s.guestTop}>
@@ -65,12 +66,37 @@ function GuestCard({ onAuth }: { onAuth: () => void }) {
           <Text style={s.guestSub}>{t.guestSub}</Text>
         </View>
       </View>
-      <Tap style={s.btn} onPress={onAuth}>
+      <Tap style={s.btn} onPress={() => onAuth('signin')}>
         <Text style={s.btnText}>{t.signIn}</Text>
         <Icon name="arrow" size={20} color="#fff" />
       </Tap>
-      <Tap style={s.btnOutline} onPress={onAuth}>
+      <Tap style={s.btnOutline} onPress={() => onAuth('signup')}>
         <Text style={s.btnOutlineText}>{t.signUp}</Text>
+      </Tap>
+    </View>
+  );
+}
+
+/** Корти корбари воридшуда: ҳарфи аввали ном, ном, почта ва баромад аз ҳисоб. */
+function SignedInCard({ name, email }: { name: string; email: string }) {
+  const letter = (name || email).charAt(0).toUpperCase();
+  return (
+    <View style={s.card}>
+      <View style={s.guestTop}>
+        <View style={s.avatar}>
+          <Text style={s.avatarLetter}>{letter}</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={s.guestName} numberOfLines={1}>
+            {name || t.signedInAs}
+          </Text>
+          <Text style={s.guestSub} numberOfLines={1}>
+            {email}
+          </Text>
+        </View>
+      </View>
+      <Tap style={s.btnOutline} onPress={signOut}>
+        <Text style={s.btnOutlineText}>{t.signOut}</Text>
       </Tap>
     </View>
   );
@@ -128,39 +154,24 @@ function LocalStats() {
   );
 }
 
-/** Профил (пеш аз воридшавӣ): меҳмон, афзалиятҳои воридшавӣ, пешравии маҳаллӣ ва насб кардани барнома. */
-export function ProfileScreen() {
-  const [toast, setToast] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
-  const onAuth = () => {
-    setToast(true);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToast(false), 2500);
-  };
+/** Профил: меҳмон (воридшавӣ/сабти ном ва афзалиятҳо) ё корбари воридшуда; пешравии маҳаллӣ ва насб кардани барнома. */
+export function ProfileScreen({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
+  const user = useAuth();
   return (
-    <View style={{ flex: 1 }}>
-      <PullToRefresh style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingTop: 16, paddingBottom: 110, gap: 14 }} showsVerticalScrollIndicator={false}>
-        <Text style={s.title}>{t.profileTitle}</Text>
-        <GuestCard onAuth={onAuth} />
-        <Benefits />
-        <LocalStats />
-        <InstallCard />
-        <Text style={s.version}>{t.appVersion}</Text>
-      </PullToRefresh>
-      {/* Тоаст берун аз PullToRefresh (transform 'absolute'-ро ба скролл мепайвандад) */}
-      <View pointerEvents="none" style={[s.toastWrap, { opacity: toast ? 1 : 0, transform: [{ translateY: toast ? 0 : 12 }] }, toastMotion]}>
-        <View style={s.toast}>
-          <Text style={s.toastText}>{t.authSoon}</Text>
-        </View>
-      </View>
-    </View>
+    <PullToRefresh style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingTop: 16, paddingBottom: 110, gap: 14 }} showsVerticalScrollIndicator={false}>
+      <Text style={s.title}>{t.profileTitle}</Text>
+      {user ? <SignedInCard name={user.name} email={user.email} /> : <GuestCard onAuth={onAuth} />}
+      {user ? null : <Benefits />}
+      <LocalStats />
+      <InstallCard />
+      <Text style={s.version}>{t.appVersion}</Text>
+    </PullToRefresh>
   );
 }
-const toastMotion = { transition: 'opacity 220ms ease, transform 220ms ease' } as object;
 
 const s = StyleSheet.create({
   guestTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avatarLetter: { fontSize: 28, fontWeight: '800', color: colors.green },
   avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.greenSoft, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
   guestName: { fontSize: 20, fontWeight: '800', color: colors.text, letterSpacing: -0.3 },
   guestSub: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
@@ -175,9 +186,6 @@ const s = StyleSheet.create({
   statValue: { fontSize: 20, fontWeight: '800', color: colors.text, marginTop: 8, letterSpacing: -0.4 },
   statLabel: { fontSize: 11.5, color: colors.textSecondary, marginTop: 2 },
   version: { textAlign: 'center', fontSize: 12, color: colors.textTertiary, marginTop: 4 },
-  toastWrap: { position: 'absolute', left: 0, right: 0, bottom: 108, alignItems: 'center', paddingHorizontal: 24, zIndex: 100 },
-  toast: { maxWidth: 360, backgroundColor: 'rgba(19, 37, 28, 0.92)', borderRadius: 22, paddingHorizontal: 18, paddingVertical: 12, boxShadow: '0px 10px 28px rgba(18, 52, 36, 0.28)' },
-  toastText: { color: '#fff', fontSize: 14, fontWeight: '600', textAlign: 'center', lineHeight: 20 },
   title: { fontSize: 24, fontWeight: '800', color: colors.text, letterSpacing: -0.6, paddingHorizontal: 4 },
   card: { backgroundColor: colors.card, borderRadius: radius.card, borderWidth: 1, borderColor: 'rgba(255,255,255,0.7)', padding: 18, ...softShadow, ...glass },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14 },

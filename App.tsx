@@ -7,6 +7,7 @@ import { loadContent } from './src/content';
 import { CategoryScreen } from './src/screens/CategoryScreen';
 import { DictionariesScreen } from './src/screens/DictionariesScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { AuthScreen } from './src/screens/AuthScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { StudyScreen } from './src/screens/StudyScreen';
 import { setupPwa } from './src/pwa';
@@ -59,8 +60,19 @@ const toastMotion = { transition: 'opacity 220ms ease, transform 220ms ease' } a
 // Дар телефон экрани пурра; дар компютер — сутуни марказии 480px.
 export default function App() {
   useGlobalStyles();
-  const { tab, studying, studyCategory, category, catalog, toast, goTab, openStudy, closeStudy, openCatalog, closeCatalog, openCategory, closeCategory } = useNav();
+  const { tab, studying, studyCategory, category, catalog, toast, auth, goTab, openStudy, closeStudy, openCatalog, closeCatalog, openCategory, closeCategory, openAuth, setAuthMode, closeAuth } = useNav();
 
+
+  // Воридшавӣ / сабти ном — экрани пурра (бе менюи поёнӣ)
+  if (auth) {
+    return (
+      <View style={styles.outer}>
+        <View style={styles.page}>
+          <AuthScreen mode={auth} onMode={setAuthMode} onClose={closeAuth} onDone={closeAuth} />
+        </View>
+      </View>
+    );
+  }
 
   // Ҷаласаи омӯзиш экрани пурра аст (бе менюи поёнӣ)
   if (studying) {
@@ -105,7 +117,7 @@ export default function App() {
               onCatalog={openCatalog}
             />
           ))}
-        {tab === 'profile' && <ProfileScreen />}
+        {tab === 'profile' && <ProfileScreen onAuth={openAuth} />}
         {tab !== 'home' && tab !== 'profile' && <Soon />}
       </View>
       <BottomNav active={tab} onChange={goTab} />

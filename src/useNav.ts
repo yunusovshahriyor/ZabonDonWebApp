@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import type { TabKey } from './components/BottomNav';
 
-/** catalog — каталоги категорияҳо (аз саҳифаи асосӣ); category — категорияи кушодашуда дар каталог; studyCategory — омӯзиши ҳамон категория (бе он — омӯзиши умумӣ). */
-export type Nav = { tab: TabKey; studying: boolean; category: string | null; catalog: boolean; studyCategory?: string };
+export type AuthMode = 'signin' | 'signup';
 
-type HState = { zd: 1; tab: TabKey; studying: boolean; cat?: string | null; cg?: boolean; sc?: string } | { zd: 'exit' };
+/** auth — экрани воридшавӣ/сабти ном (аз Профил); catalog — каталоги категорияҳо (аз саҳифаи асосӣ); category — категорияи кушодашуда дар каталог; studyCategory — омӯзиши ҳамон категория (бе он — омӯзиши умумӣ). */
+export type Nav = { tab: TabKey; studying: boolean; category: string | null; catalog: boolean; auth: AuthMode | null; studyCategory?: string };
+
+type HState = { zd: 1; tab: TabKey; studying: boolean; cat?: string | null; cg?: boolean; au?: AuthMode; sc?: string } | { zd: 'exit' };
 
 const isWeb = Platform.OS === 'web' && typeof window !== 'undefined';
 const HOME: HState = { zd: 1, tab: 'home', studying: false, cat: null, cg: false };
@@ -13,8 +15,8 @@ const HOME: HState = { zd: 1, tab: 'home', studying: false, cat: null, cg: false
 /** Чанд сония тоаст намоён мемонад; дар ин вақт "Назад"-и дуюм барномаро мебарорад. */
 export const EXIT_TOAST_MS = 3000;
 
-const depthOf = (n: Nav) => (n.tab !== 'home' ? 1 : 0) + (n.catalog ? 1 : 0) + (n.category ? 1 : 0) + (n.studying ? 1 : 0);
-const fromState = (st: Extract<HState, { zd: 1 }>): Nav => ({ tab: st.tab, studying: st.studying, category: st.cat ?? null, catalog: !!st.cg, studyCategory: st.sc });
+const depthOf = (n: Nav) => (n.tab !== 'home' ? 1 : 0) + (n.catalog ? 1 : 0) + (n.auth ? 1 : 0) + (n.category ? 1 : 0) + (n.studying ? 1 : 0);
+const fromState = (st: Extract<HState, { zd: 1 }>): Nav => ({ tab: st.tab, studying: st.studying, category: st.cat ?? null, catalog: !!st.cg, auth: st.au ?? null, studyCategory: st.sc });
 
 /**
  * Навигатсия бо History API, то тугмаи "Назад"-и телефон/браузер кор кунад:
@@ -31,7 +33,7 @@ const fromState = (st: Extract<HState, { zd: 1 }>): Nav => ({ tab: st.tab, study
 export function useNav() {
   const [nav, setNavState] = useState<Nav>(() => {
     const st = isWeb ? (history.state as HState | null) : null;
-    return st && st.zd === 1 ? fromState(st) : { tab: 'home', studying: false, category: null, catalog: false };
+    return st && st.zd === 1 ? fromState(st) : { tab: 'home', studying: false, category: null, catalog: false, auth: null };
   });
   const [toast, setToast] = useState(false);
   const navRef = useRef(nav);
@@ -105,10 +107,10 @@ export function useNav() {
       if (tab === cur.tab) {
         // «Асосӣ» дар дохили каталог/категория — ба саҳифаи асосӣ
         if (tab === 'home' && depthOf(cur) > 0 && isWeb && stackReady.current) history.go(-depthOf(cur));
-        else if (tab === 'home' && depthOf(cur) > 0) setNavState({ tab, studying: false, category: null, catalog: false });
+        else if (tab === 'home' && depthOf(cur) > 0) setNavState({ tab, studying: false, category: null, catalog: false, auth: null });
         return;
       }
-      const fresh: Nav = { tab, studying: false, category: null, catalog: false };
+      const fresh: Nav = { tab, studying: false, category: null, catalog: false, auth: null };
       if (!isWeb) return setNavState(fresh);
       ensureStack();
       leaveSentinel();
@@ -142,8 +144,33 @@ export function useNav() {
       leaveSentinel();
       history.pushState({ zd: 1, tab: 'home', studying: false, cat: null, cg: true } satisfies HState, '');
     }
-    setNavState({ ...cur, tab: 'home', studying: false, category: null, catalog: true });
+    setNavState({ ...cur, tab: 'home', studying: false, category: null, catalog: true, auth: null });
   }, [ensureStack, leaveSentinel]);
+
+  const openAuth = useCallback(
+    (mode: AuthMode) => {
+      const cur = navRef.current;
+      if (isWeb) {
+        ensureStack();
+        leaveSentinel();
+        history.pushState({ zd: 1, tab: cur.tab, studying: false, cat: null, cg: false, au: mode } satisfies HState, '');
+      }
+      setNavState({ ...cur, studying: false, category: null, catalog: false, auth: mode });
+    },
+    [ensureStack, leaveSentinel],
+  );
+
+  /** Гузариш байни «Воридшавӣ» ва «Сабти ном» бе илова кардани вуруди нави таърих. */
+  const setAuthMode = useCallback((mode: AuthMode) => {
+    const cur = navRef.current;
+    if (isWeb && stackReady.current) history.replaceState({ zd: 1, tab: cur.tab, studying: false, cat: null, cg: false, au: mode } satisfies HState, '');
+    setNavState({ ...cur, auth: mode });
+  }, []);
+
+  const closeAuth = useCallback(() => {
+    if (isWeb && stackReady.current) history.back();
+    else setNavState({ ...navRef.current, auth: null });
+  }, []);
 
   const closeCatalog = useCallback(() => {
     if (isWeb && stackReady.current) history.back();
@@ -158,7 +185,7 @@ export function useNav() {
         leaveSentinel();
         history.pushState({ zd: 1, tab: cur.tab, studying: false, cat: id, cg: cur.catalog } satisfies HState, '');
       }
-      setNavState({ tab: cur.tab, studying: false, category: id, catalog: cur.catalog });
+      setNavState({ tab: cur.tab, studying: false, category: id, catalog: cur.catalog, auth: null });
     },
     [ensureStack, leaveSentinel],
   );
@@ -176,7 +203,7 @@ export function useNav() {
         leaveSentinel();
         history.pushState({ zd: 1, tab: cur.tab, studying: true, cat: cur.category, cg: cur.catalog, sc: categoryId } satisfies HState, '');
       }
-      setNavState({ tab: cur.tab, studying: true, category: cur.category, catalog: cur.catalog, studyCategory: categoryId });
+      setNavState({ tab: cur.tab, studying: true, category: cur.category, catalog: cur.catalog, auth: null, studyCategory: categoryId });
     },
     [ensureStack, leaveSentinel],
   );
@@ -186,5 +213,5 @@ export function useNav() {
     else setNavState({ ...navRef.current, studying: false, studyCategory: undefined });
   }, []);
 
-  return { ...nav, toast, goTab, openStudy, closeStudy, openCatalog, closeCatalog, openCategory, closeCategory };
+  return { ...nav, toast, goTab, openStudy, closeStudy, openCatalog, closeCatalog, openCategory, closeCategory, openAuth, setAuthMode, closeAuth };
 }

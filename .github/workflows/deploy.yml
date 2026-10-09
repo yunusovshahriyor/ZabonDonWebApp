@@ -28,6 +28,8 @@ jobs:
         run: npx expo export --platform web
         env:
           EXPO_BASE_URL: /${{ github.event.repository.name }}
+          # Калиди API-и веб (Firebase Auth): Settings → Secrets and variables → Actions → Variables → FIREBASE_API_KEY
+          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
       # SPA: ҳар суроғаи ношинос ба index.html бармегардад
       - run: cp dist/index.html dist/404.html
       - uses: actions/upload-pages-artifact@v3
